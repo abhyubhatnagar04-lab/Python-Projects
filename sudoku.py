@@ -45,48 +45,39 @@ def solve_backtrack(b):
             b[row][col] = 0
     return False
 
-# Generate master solution key once
+# Pre-calculate the master key right on boot
 if "solution_key" not in st.session_state:
     master_key = [row[:] for row in STARTING_BOARD]
-    solve_backtrack(master_key)
-    st.session_state.solution_key = master_key
-
-# Initialize matrix state
-if "current_matrix" not in st.session_state:
-    st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
-
-# ==========================================
-# 2. CALLBACK FUNCTIONS (The Button Fix)
-# ==========================================
-def run_auto_solve():
-    temp_board = [row[:] for row in STARTING_BOARD]
     start_time = time.time()
-    if solve_backtrack(temp_board):
-        elapsed = time.time() - start_time
-        # Clear specific widget states from memory
-        for r in range(9):
-            for c in range(9):
-                if f"cell_{r}_{c}" in st.session_state:
-                    del st.session_state[f"cell_{r}_{c}"]
-        st.session_state.current_matrix = temp_board
-        st.session_state.solve_msg = f"✅ Solved by backtracking engine in {elapsed:.4f} seconds!"
+    solve_backtrack(master_key)
+    elapsed = time.time() - start_time
+    st.session_state.solution_key = master_key
+    st.session_state.bench_time = elapsed
 
-def run_reset_board():
-    for r in range(9):
-        for c in range(9):
-            if f"cell_{r}_{c}" in st.session_state:
-                del st.session_state[f"cell_{r}_{c}"]
-    st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
-    if "solve_msg" in st.session_state:
-        del st.session_state.solve_msg
+# Initialize player canvas matrix
+if "player_matrix" not in st.session_state:
+    st.session_state.player_matrix = [row[:] for row in STARTING_BOARD]
 
 # ==========================================
-# 3. STATE INTERFACE RUNTIME & CSS
+# 2. UI CONFIGURATION & SIDEBAR MODE
 # ==========================================
 st.set_page_config(page_title="Web Sudoku Engine", page_icon="🧩", layout="centered")
-st.title("🧩 Autonomous Sudoku Solver")
-st.caption("Interactive browser version of your PyQt5 engine layout")
+st.title("🧩 Autonomous Sudoku Dashboard")
+st.caption("Clean browser view powered by your recursive backtracking logic")
 
+with st.sidebar:
+    st.header("⚙️ Board Controller")
+    # Dropdown replacing the problematic button actions
+    app_mode = st.selectbox(
+        "Choose App Mode:",
+        ["🎮 Play / Manual Entry", "🤖 View Solved Board"]
+    )
+    
+    st.markdown("---")
+    st.markdown(f"**Engine Benchmark:**")
+    st.caption(f"Core backtrack solved initial state matrix in **{st.session_state.bench_time:.4f} seconds**.")
+
+# Inject clean CSS styling for grid alignment
 st.markdown("""
     <style>
     div[data-testid="stHorizontalBlock"] {
@@ -102,66 +93,51 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 4. INTERACTIVE 9x9 GRID RENDERING
+# 3. INTERACTIVE 9x9 GRID RENDERING
 # ==========================================
+# Determine which dataset to project on screen based on sidebar toggle
+active_render_source = (
+    st.session_state.solution_key 
+    if app_mode == "🤖 View Solved Board" 
+    else st.session_state.player_matrix
+)
+
 for r in range(9):
     cols = st.columns(9)
     for c in range(9):
         original_val = STARTING_BOARD[r][c]
-        current_val = st.session_state.current_matrix[r][c]
+        display_val = active_render_source[r][c]
         
         if original_val != 0:
+            # Render fixed start clues as grey badges
             cols[c].markdown(
                 f"<div style='text-align:center; background-color:#E0E0E0; border-radius:4px; padding:8px; font-weight:bold; font-size:18px; color:#333;'>{original_val}</div>", 
                 unsafe_allow_html=True
             )       
         else:
-            val_str = str(current_val) if current_val != 0 else ""
-            user_entry = cols[c].text_input(
-                "", 
-                value=val_str, 
-                max_chars=1, 
-                key=f"cell_{r}_{c}", 
-                label_visibility="collapsed"
-            )
-            # Soft fallback update during manual typing
-            if user_entry.isdigit() and 1 <= int(user_entry) <= 9:
-                st.session_state.current_matrix[r][c] = int(user_entry)
-            elif user_entry == "":
-                st.session_state.current_matrix[r][c] = 0
+            if app_mode == "🤖 View Solved Board":
+                # Render solved engine numbers as green badges
+                cols[c].markdown(
+                    f"<div style='text-align:center; background-color:#D4EDDA; border-radius:4px; padding:8px; font-weight:bold; font-size:18px; color:#155724;'>{display_val}</div>", 
+                    unsafe_allow_html=True
+                )
+            else:
+                # Active play inputs
+                val_str = str(display_val) if display_val != 0 else ""
+                user_entry = cols[c].text_input(
+                    "", 
+                    value=val_str, 
+                    max_chars=1, 
+                    key=f"cell_{r}_{c}", 
+                    label_visibility="collapsed"
+                )
+                if user_entry.isdigit() and 1 <= int(user_entry) <= 9:
+                    st.session_state.player_matrix[r][c] = int(user_entry)
+                elif user_entry == "":
+                    st.session_state.player_matrix[r][c] = 0
 
-st.markdown("---")
-
-# ==========================================
-# 5. ACTION TRIGGERS WITH DIRECT CALLBACKS
-# ==========================================
-btn_col1, btn_col2, btn_col3 = st.columns(3)
-
-# Hooking click events directly to the memory modifier functions
-btn_col1.button("🤖 Auto-Solve Board", use_container_width=True, on_click=run_auto_solve)
-
-if btn_col2.button("🔍 Check My Answers", use_container_width=True):
-    matrix = st.session_state.current_matrix
-    error_found = False
-    
-    for r in range(9):
-        for c in range(9):
-            if STARTING_BOARD[r][c] == 0 and matrix[r][c] != 0:
-                if matrix[r][c] != st.session_state.solution_key[r][c]:
-                    st.error(f"❌ Mistake found at Row {r+1}, Column {c+1}!")
-                    error_found = True
-                    break
-        if error_found: break
-        
-    if not error_found:
-        if find_empty(matrix) is None:
-            st.balloons()
-            st.success("🎉 Congratulations! You perfectly solved the Sudoku board!")
-        else:
-            st.info("👍 Looking good so far! No mistakes found. Keep filling!")
-
-btn_col3.button("🔄 Reset Board", use_container_width=True, type="secondary", on_click=run_reset_board)
-
-# Display solve processing duration message if active
-if "solve_msg" in st.session_state:
-    st.info(st.session_state.solve_msg)
+# Add a little state tracker text at the bottom for feedback
+if app_mode == "🎮 Play / Manual Entry":
+    st.info("💡 Tip: Toggle 'View Solved Board' in the sidebar to see the engine's answer key instantly!")
+else:
+    st.success("🤖 Displaying complete matrix solution calculated by the backtracking algorithm.")
