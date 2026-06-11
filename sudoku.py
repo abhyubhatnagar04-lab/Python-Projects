@@ -67,7 +67,6 @@ st.caption("Clean browser view powered by your recursive backtracking logic")
 
 with st.sidebar:
     st.header("⚙️ Board Controller")
-    # Dropdown replacing the problematic button actions
     app_mode = st.selectbox(
         "Choose App Mode:",
         ["🎮 Play / Manual Entry", "🤖 View Solved Board"]
@@ -95,7 +94,6 @@ st.markdown("""
 # ==========================================
 # 3. INTERACTIVE 9x9 GRID RENDERING
 # ==========================================
-# Determine which dataset to project on screen based on sidebar toggle
 active_render_source = (
     st.session_state.solution_key 
     if app_mode == "🤖 View Solved Board" 
@@ -109,20 +107,17 @@ for r in range(9):
         display_val = active_render_source[r][c]
         
         if original_val != 0:
-            # Render fixed start clues as grey badges
             cols[c].markdown(
                 f"<div style='text-align:center; background-color:#E0E0E0; border-radius:4px; padding:8px; font-weight:bold; font-size:18px; color:#333;'>{original_val}</div>", 
                 unsafe_allow_html=True
             )       
         else:
             if app_mode == "🤖 View Solved Board":
-                # Render solved engine numbers as green badges
                 cols[c].markdown(
                     f"<div style='text-align:center; background-color:#D4EDDA; border-radius:4px; padding:8px; font-weight:bold; font-size:18px; color:#155724;'>{display_val}</div>", 
                     unsafe_allow_html=True
                 )
             else:
-                # Active play inputs
                 val_str = str(display_val) if display_val != 0 else ""
                 user_entry = cols[c].text_input(
                     "", 
@@ -136,8 +131,31 @@ for r in range(9):
                 elif user_entry == "":
                     st.session_state.player_matrix[r][c] = 0
 
-# Add a little state tracker text at the bottom for feedback
+st.markdown("---")
+
+# ==========================================
+# 4. RESTORED EVALUATION ACTION
+# ==========================================
 if app_mode == "🎮 Play / Manual Entry":
-    st.info("💡 Tip: Toggle 'View Solved Board' in the sidebar to see the engine's answer key instantly!")
+    if st.button("🔍 Check My Answers", use_container_width=True, type="primary"):
+        matrix = st.session_state.player_matrix
+        error_found = False
+        
+        for r in range(9):
+            for c in range(9):
+                # Check user inputs against the backend solution key
+                if STARTING_BOARD[r][c] == 0 and matrix[r][c] != 0:
+                    if matrix[r][c] != st.session_state.solution_key[r][c]:
+                        st.error(f"❌ Mistake found at Row {r+1}, Column {c+1}!")
+                        error_found = True
+                        break
+            if error_found: break
+            
+        if not error_found:
+            if find_empty(matrix) is None:
+                st.balloons()
+                st.success("🎉 Congratulations! You perfectly solved the Sudoku board!")
+            else:
+                st.info("👍 Looking good so far! No mistakes found. Keep filling!")
 else:
     st.success("🤖 Displaying complete matrix solution calculated by the backtracking algorithm.")
