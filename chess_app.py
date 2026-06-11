@@ -2,46 +2,32 @@ import streamlit as st
 import chess
 
 # ==========================================
-# 1. UI CONFIGURATION & PROFESSIONAL STYLING
+# 1. UI CONFIGURATION & BOARD STYLING
 # ==========================================
 st.set_page_config(page_title="Premium Chess Arena", page_icon="♔", layout="centered")
 st.title("♔ Autonomous Chess Arena")
-st.caption("Professional Graphical Board — 100% Fail-Proof Click Mechanics")
+st.caption("Clean Graphical Matrix — High-Resolution Asset Rendering")
 
-# Injecting clean CSS to load beautiful background blocks and size the image buttons
+# Minimal CSS to align grid cells smoothly
 st.markdown("""
     <style>
-    /* Dark square styling */
-    div.stButton > button.css-dark-sq, div.stButton > button[key^="dark_"] {
-        background-color: #b58863 !important;
-        height: 60px !important;
-        width: 100% !important;
-        border: none !important;
-        border-radius: 0px !important;
-        padding: 0 !important;
-    }
-    /* Light square styling */
-    div.stButton > button.css-light-sq, div.stButton > button[key^="light_"] {
-        background-color: #f0d9b5 !important;
-        height: 60px !important;
-        width: 100% !important;
-        border: none !important;
-        border-radius: 0px !important;
-        padding: 0 !important;
-    }
-    /* Hover highlight */
-    div.stButton > button:hover {
-        border: 3px solid #ffcc00 !important;
-    }
-    /* Grid alignment fix */
     div[data-testid="stHorizontalBlock"] {
         gap: 0px !important;
         margin-bottom: 0px !important;
     }
+    div[data-testid="column"] {
+        padding: 0px !important;
+        text-align: center !important;
+    }
+    /* Highlight effect for selections */
+    .selected-sq {
+        border: 3px solid #ffcc00 !important;
+        box-sizing: border-box;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Wikimedia commons links for standard high-quality chess pieces
+# Wikimedia high-quality chess pieces URLs
 PIECE_IMAGES = {
     'P': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
     'R': 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
@@ -57,6 +43,9 @@ PIECE_IMAGES = {
     'k': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 }
 
+# Fallback transparent placeholder for empty squares so layout stays intact
+EMPTY_SQUARE = "https://upload.wikimedia.org/wikipedia/commons/c/ca/1x1.png"
+
 # Session state initialization
 if "board" not in st.session_state:
     st.session_state.board = chess.Board()
@@ -68,7 +57,7 @@ if "move_log" not in st.session_state:
 board = st.session_state.board
 
 # ==========================================
-# 2. SIDEBAR GAME CONTROLLER
+# 2. SIDEBAR METADATA PANEL
 # ==========================================
 with st.sidebar:
     st.header("⚙️ Match Controller")
@@ -92,66 +81,60 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 3. INTERACTIVE BOARD GENERATION
+# 3. GRAPHICAL 8x8 GRID VIA ST.IMAGE
 # ==========================================
 st.write("### ♟️ Click Piece -> Then Click Target Square")
 
-# Render 8x8 functional grid
 for rank in range(7, -1, -1):
     grid_cols = st.columns(8)
     for file in range(8):
         square_idx = chess.square(file, rank)
         piece = board.piece_at(square_idx)
         
-        # Alternate background colors
-        is_dark = (rank + file) % 2 == 0
-        sq_type = "dark" if is_dark else "light"
+        # Get appropriate piece asset URL
+        img_url = PIECE_IMAGES[piece.symbol()] if piece else EMPTY_SQUARE
         
-        # Visual styling configuration
-        if st.session_state.selected_square == square_idx:
-            # Highlight selected piece border natively via markdown label
-            btn_content = "⭐"
-        elif piece:
-            # Embed image URL directly into the button layout using HTML
-            img_url = PIECE_IMAGES[piece.symbol()]
-            btn_content = f'<img src="{img_url}" width="45" height="45"/>'
-        else:
-            btn_content = " "
-            
-        # Execute button rendering
-        if grid_cols[file].button(btn_content, key=f"{sq_type}_{rank}_{file}", use_container_width=True):
-            if st.session_state.selected_square is None:
-                # First click: Select Piece
-                if piece and piece.color == board.turn:
-                    st.session_state.selected_square = square_idx
-                    st.rerun()
+        # Render clean image directly using Streamlit's native image container
+        # We use st.button with an overlay or a helper text below it for solid activation
+        is_selected = st.session_state.selected_square == square_idx
+        btn_caption = "⭐" if is_selected else f"{chess.square_name(square_idx).upper()}"
+        
+        with grid_cols[file]:
+            st.image(img_url, width=48)
+            # Small structural button directly under the asset for 100% click reliability
+            if st.button(btn_caption, key=f"btn_{rank}_{file}", use_container_width=True):
+                if st.session_state.selected_square is None:
+                    # First click: Selection
+                    if piece and piece.color == board.turn:
+                        st.session_state.selected_square = square_idx
+                        st.rerun()
+                    else:
+                        st.toast("⚠️ Select your own active color piece!", icon="👀")
                 else:
-                    st.error("Not your turn / Empty square!")
-            else:
-                # Second click: Move Execution
-                source_sq = st.session_state.selected_square
-                target_sq = square_idx
-                proposed_move = chess.Move(source_sq, target_sq)
-                
-                # Pawn promotion logic
-                moving_piece = board.piece_at(source_sq)
-                if moving_piece and moving_piece.piece_type == chess.PAWN and rank in [0, 7]:
-                    proposed_move.promotion = chess.QUEEN
+                    # Second click: Execution
+                    source_sq = st.session_state.selected_square
+                    target_sq = square_idx
+                    proposed_move = chess.Move(source_sq, target_sq)
                     
-                if proposed_move in board.legal_moves:
-                    board.push(proposed_move)
-                    st.session_state.move_log.append(proposed_move.uci())
-                    st.toast(f"Moved: {proposed_move.uci()}", icon="⚔️")
-                else:
-                    st.error("❌ Illegal Move!")
-                
-                st.session_state.selected_square = None
-                st.rerun()
+                    # Pawn promotion logic
+                    moving_piece = board.piece_at(source_sq)
+                    if moving_piece and moving_piece.piece_type == chess.PAWN and rank in [0, 7]:
+                        proposed_move.promotion = chess.QUEEN
+                        
+                    if proposed_move in board.legal_moves:
+                        board.push(proposed_move)
+                        st.session_state.move_log.append(proposed_move.uci())
+                        st.toast(f"Moved: {proposed_move.uci()}", icon="⚔️")
+                    else:
+                        st.toast("❌ Illegal Move Attempted!", icon="🚫")
+                    
+                    st.session_state.selected_square = None
+                    st.rerun()
 
 st.markdown("---")
 
 # ==========================================
-# 4. NOTATION LOG FEED
+# 4. GAME LOG FEED
 # ==========================================
 if st.session_state.move_log:
     st.markdown("### 📋 Match History")
