@@ -1,7 +1,7 @@
 import streamlit as st
 import socket
 import chess
-from streamlit_chess import chess as render_web_board
+from stchess import board as render_web_board # <-- Updated this import line
 
 # ==========================================
 # 1. UI HEADER CONFIGURATION
