@@ -45,7 +45,7 @@ def solve_backtrack(b):
             b[row][col] = 0
     return False
 
-# Generate immutable master key for checking answers
+# Generate master solution key once
 if "solution_key" not in st.session_state:
     master_key = [row[:] for row in STARTING_BOARD]
     solve_backtrack(master_key)
@@ -62,6 +62,13 @@ st.caption("Interactive browser version of your PyQt5 engine layout")
 if "current_matrix" not in st.session_state:
     st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
 
+# Helper function to completely purge text input caches on Reset/Solve
+def clear_input_widgets():
+    for r in range(9):
+        for c in range(9):
+            if f"cell_{r}_{c}" in st.session_state:
+                del st.session_state[f"cell_{r}_{c}"]
+
 # CSS injection to clean up inputs and visually simulate grid boxes
 st.markdown("""
     <style>
@@ -77,13 +84,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. INTERACTIVE 9x9 GRID RENDERING (Fixed Indentation)
-# ==========================================
-# ==========================================
-# 3. INTERACTIVE 9x9 GRID RENDERING (With 3x3 Box Borders)
-# ==========================================
-# ==========================================
-# 3. INTERACTIVE 9x9 GRID RENDERING (With Thick 3x3 Borders)
+# 3. INTERACTIVE 9x9 GRID RENDERING
 # ==========================================
 for r in range(9):
     cols = st.columns(9)
@@ -91,45 +92,26 @@ for r in range(9):
         original_val = STARTING_BOARD[r][c]
         current_val = st.session_state.current_matrix[r][c]
         
-        # Calculate distinct border thickness for 3x3 block boundaries
-        top_border = "3px solid #000000" if (r % 3 == 0 and r != 0) else "1px solid #A0A0A0"
-        left_border = "3px solid #000000" if (c % 3 == 0 and c != 0) else "1px solid #A0A0A0"
-        bottom_border = "3px solid #000000" if r == 8 else "1px solid #A0A0A0"
-        right_border = "3px solid #000000" if c == 8 else "1px solid #A0A0A0"
-        
-        style_string = f"""
-            text-align: center; 
-            font-weight: bold; 
-            font-size: 18px; 
-            padding: 8px; 
-            border-top: {top_border}; 
-            border-left: {left_border};
-            border-bottom: {bottom_border};
-            border-right: {right_border};
-        """
-        
         if original_val != 0:
-            # Locked clues (Grey Background)
             cols[c].markdown(
-                f"<div style='{style_string} background-color: #E0E0E0; color: #333; border-radius: 4px;'>{original_val}</div>", 
+                f"<div style='text-align:center; background-color:#E0E0E0; border-radius:4px; padding:8px; font-weight:bold; font-size:18px; color:#333;'>{original_val}</div>", 
                 unsafe_allow_html=True
             )       
         else:
-            # Player entry blocks (White Background with Blue Text Input simulation)
-            # We use an outer markdown div wrapper to enforce the strict 3x3 border box system around the input
             val_str = str(current_val) if current_val != 0 else ""
-            
-            # Create a clean input container
-            with cols[c]:
-                user_entry = st.text_input(
-                    "", 
-                    value=val_str, 
-                    max_chars=1, 
-                    key=f"cell_{r}_{c}", 
-                    label_visibility="collapsed"
-                )
-                # Update state matrix based on valid inputs
-                st.session_state.current_matrix[r][c] = int(user_entry) if (user_entry.isdigit() and 1 <= int(user_entry) <= 9) else 0
+            user_entry = cols[c].text_input(
+                "", 
+                value=val_str, 
+                max_chars=1, 
+                key=f"cell_{r}_{c}", 
+                label_visibility="collapsed"
+            )
+            # Safe live update to state matrix
+            if user_entry.isdigit() and 1 <= int(user_entry) <= 9:
+                st.session_state.current_matrix[r][c] = int(user_entry)
+            elif user_entry == "":
+                st.session_state.current_matrix[r][c] = 0
+
 st.markdown("---")
 
 # ==========================================
@@ -142,6 +124,7 @@ if btn_col1.button("🤖 Auto-Solve Board", use_container_width=True):
     start_time = time.time()
     if solve_backtrack(temp_board):
         elapsed = time.time() - start_time
+        clear_input_widgets() # Clear cache so new matrix numbers display
         st.session_state.current_matrix = temp_board
         st.success(f"Solved by backtracking engine in {elapsed:.4f} seconds!")
         st.rerun()
@@ -167,5 +150,6 @@ if btn_col2.button("🔍 Check My Answers", use_container_width=True):
             st.info("👍 Looking good so far! No mistakes found. Keep filling!")
 
 if btn_col3.button("🔄 Reset Board", use_container_width=True, type="secondary"):
+    clear_input_widgets() # Wipe out old browser cache completely
     st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
     st.rerun()
