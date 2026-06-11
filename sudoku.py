@@ -85,10 +85,12 @@ for r in range(9):
         original_val = STARTING_BOARD[r][c]
         current_val = st.session_state.current_matrix[r][c]
         
-        if original_val != 0:
-            # Locked clues
-            cols[c].markdown(f"<div style='text-align:center; background-color:#E0E0E0; border-radius:4px; padding:8px; font-weight:bold; font-size:18px; color:#333;'>{original_val}</div>", unsafe_rendering_allowed=True)
-        else:
+       if original_val != 0:
+    # Locked clues
+    cols[c].markdown(
+        f"<div style='text-align:center; background-color:#E0E0E0; border-radius:4px; padding:8px; font-weight:bold; font-size:18px; color:#333;'>{original_val}</div>", 
+        unsafe_allow_html=True # <-- Fixed this keyword argument right here!)       
+           else:
             # Player entry blocks
             val_str = str(current_val) if current_val != 0 else ""
             user_entry = cols[c].text_input(
