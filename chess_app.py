@@ -1,45 +1,55 @@
 import streamlit as st
 import chess
-import chess.svg
-import base64
 
 # ==========================================
-# 1. UI CONFIGURATION & PREMIUM STYLING
+# 1. UI CONFIGURATION & STYLING
 # ==========================================
 st.set_page_config(page_title="Premium Chess Arena", page_icon="♔", layout="centered")
 st.title("♔ Autonomous Chess Arena")
-st.caption("High-Definition SVG Graphics with Native Click-to-Move Mechanics")
+st.caption("Responsive Click-to-Move Matrix — High-Contrast Tournament Theme")
 
-# Injecting Custom CSS to turn standard Streamlit buttons completely transparent
-# This allows the beautiful SVG chess pieces to show through from underneath!
+# Custom CSS for high-quality professional board colors
 st.markdown("""
     <style>
-    div.stButton > button {
-        background-color: transparent !important;
-        color: transparent !important;
-        border: 1px solid transparent !important;
-        height: 52px !important;
+    /* Dark square styling */
+    div.stButton > button.css-dark-sq, div.stButton > button[key^="dark_"] {
+        background-color: #b58863 !important;
+        color: #f0d9b5 !important;
+        font-size: 28px !important;
+        height: 55px !important;
         width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        transition: all 0.2s ease;
+        border: none !important;
+        border-radius: 0px !important;
     }
+    /* Light square styling */
+    div.stButton > button.css-light-sq, div.stButton > button[key^="light_"] {
+        background-color: #f0d9b5 !important;
+        color: #b58863 !important;
+        font-size: 28px !important;
+        height: 55px !important;
+        width: 100% !important;
+        border: none !important;
+        border-radius: 0px !important;
+    }
+    /* Hover effects for clean feedback */
     div.stButton > button:hover {
-        border: 2px solid #829769 !important;
-        background-color: rgba(130, 151, 105, 0.3) !important;
+        border: 2px solid #ffcc00 !important;
+        cursor: pointer;
     }
-    /* Highlight selected square */
-    div.stButton > button:active, div.stButton > button:focus {
-        border: 2px solid #FFCC00 !important;
-        background-color: rgba(255, 204, 0, 0.2) !important;
-    }
-    /* Grid gap reset for perfect alignment */
+    /* Grid alignment fix */
     div[data-testid="stHorizontalBlock"] {
         gap: 0px !important;
-        margin-bottom: -4px !important;
+        margin-bottom: 0px !important;
     }
     </style>
 """, unsafe_allow_html=True)
+
+# Unicode dictionary for premium stylized pieces
+UNICODE_PIECES = {
+    'R': '♜', 'N': '♞', 'B': '♝', 'Q': '♛', 'K': '♚', 'P': '♟',
+    'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔', 'p': '♙',
+    '.': ' '
+}
 
 # Session state initialization
 if "board" not in st.session_state:
@@ -52,20 +62,22 @@ if "move_log" not in st.session_state:
 board = st.session_state.board
 
 # ==========================================
-# 2. GAME CONTROLS IN SIDEBAR
+# 2. SIDEBAR METADATA
 # ==========================================
 with st.sidebar:
-    st.header("⚙️ Match Analytics")
-    st.markdown(f"**Active Turn:** {'⚪ White' if board.turn == chess.WHITE else '⚫ Black'}")
-    st.markdown(f"**Moves Stack:** {len(board.move_stack)}")
+    st.header("⚙️ Match Controller")
+    st.markdown(f"**Turn:** {'⚪ White' if board.turn == chess.WHITE else '⚫ Black'}")
+    st.markdown(f"**Moves Played:** {len(board.move_stack)}")
     
     if st.session_state.selected_square is not None:
         sq_name = chess.square_name(st.session_state.selected_square)
-        st.info(f"📍 Selected: **{sq_name.upper()}**")
-        if st.button("❌ Clear Selection", use_container_width=True):
+        st.info(f"🎯 Selected: **{sq_name.upper()}**")
+        if st.button("❌ Cancel Selection", use_container_width=True):
             st.session_state.selected_square = None
             st.rerun()
-            
+    else:
+        st.warning("💡 Click a piece to select, then click destination.")
+
     st.markdown("---")
     if st.button("🔄 Reset Board Matrix", use_container_width=True, type="secondary"):
         st.session_state.board = chess.Board()
@@ -74,66 +86,64 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 3. PREMIUM VISUAL RENDERING (THE FIX)
+# 3. INTERACTIVE 8x8 GRID GENERATION
 # ==========================================
-# Generate official high-res chess pieces & board vectors
-fill_dict = {}
-if st.session_state.selected_square is not None:
-    fill_dict = {st.session_state.selected_square: "rgba(255, 204, 0, 0.5)"}
+st.write("### ♟️ Game Board")
 
-board_svg = chess.svg.board(
-    board=board,
-    size=420,
-    fill=fill_dict,
-    coordinates=True
-)
-b64_svg = base64.b64encode(board_svg.encode('utf-8')).decode('utf-8')
-
-# Render the HD Board directly as a background canvas layout
-st.markdown(
-    f'<div style="display: flex; justify-content: center; position: relative; width: 420px; margin: 0 auto;">'
-    f'<img src="data:image/svg+xml;base64,{b64_svg}" width="420" style="position: absolute; z-index: 1;"/>'
-    f'<div style="position: relative; z-index: 2; width: 368px; margin-top: 26px; margin-left: 26px;">', # Aligns transparent buttons over grid cells
-    unsafe_allow_html=True
-)
-
-# Render the 8x8 transparent interactive button layer over the SVG image
-for rank in range(7, -1, -1):
-    grid_cols = st.columns(8)
-    for file in range(8):
-        square_idx = chess.square(file, rank)
-        
-        # Invisible button that captures user clicks perfectly
-        if grid_cols[file].button("", key=f"cell_{rank}_{file}"):
-            if st.session_state.selected_square is None:
-                # First click: Select piece
-                piece = board.piece_at(square_idx)
-                if piece and piece.color == board.turn:
-                    st.session_state.selected_square = square_idx
+# Container for perfect board centering
+board_container = st.container()
+with board_container:
+    for rank in range(7, -1, -1):
+        grid_cols = st.columns(8)
+        for file in range(8):
+            square_idx = chess.square(file, rank)
+            piece = board.piece_at(square_idx)
+            
+            # Get symbol
+            symbol = UNICODE_PIECES[piece.symbol()] if piece else " "
+            
+            # Selection marker overlay
+            if st.session_state.selected_square == square_idx:
+                symbol = f"⭐"
+            
+            # Alternate board square colors natively
+            is_dark = (rank + file) % 2 == 0
+            sq_type = "dark" if is_dark else "light"
+            
+            # Render bulletproof native button
+            if grid_cols[file].button(symbol, key=f"{sq_type}_{rank}_{file}", use_container_width=True):
+                if st.session_state.selected_square is None:
+                    # First click: Select
+                    if piece and piece.color == board.turn:
+                        st.session_state.selected_square = square_idx
+                        st.rerun()
+                    else:
+                        st.error("Not your turn!")
+                else:
+                    # Second click: Move execution
+                    source_sq = st.session_state.selected_square
+                    target_sq = square_idx
+                    proposed_move = chess.Move(source_sq, target_sq)
+                    
+                    # Pawn promotion
+                    moving_piece = board.piece_at(source_sq)
+                    if moving_piece and moving_piece.piece_type == chess.PAWN and rank in [0, 7]:
+                        proposed_move.promotion = chess.QUEEN
+                        
+                    if proposed_move in board.legal_moves:
+                        board.push(proposed_move)
+                        st.session_state.move_log.append(proposed_move.uci())
+                        st.toast(f"Applied: {proposed_move.uci()}", icon="⚔️")
+                    else:
+                        st.error("❌ Illegal Move!")
+                    
+                    st.session_state.selected_square = None
                     st.rerun()
-            else:
-                # Second click: Move piece
-                source_sq = st.session_state.selected_square
-                target_sq = square_idx
-                proposed_move = chess.Move(source_sq, target_sq)
-                
-                # Auto-promotion handling
-                moving_piece = board.piece_at(source_sq)
-                if moving_piece and moving_piece.piece_type == chess.PAWN and rank in [0, 7]:
-                    proposed_move.promotion = chess.QUEEN
-                
-                if proposed_move in board.legal_moves:
-                    board.push(proposed_move)
-                    st.session_state.move_log.append(proposed_move.uci())
-                    st.toast(f"Moved: {proposed_move.uci()}", icon="⚔️")
-                
-                st.session_state.selected_square = None
-                st.rerun()
 
-st.markdown('</div></div><br><br>', unsafe_allow_html=True)
+st.markdown("---")
 
 # ==========================================
-# 4. GAME NOTATION LOG
+# 4. MATCH HISTORY
 # ==========================================
 if st.session_state.move_log:
     st.markdown("### 📋 Match History")
