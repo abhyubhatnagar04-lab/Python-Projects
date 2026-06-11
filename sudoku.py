@@ -82,51 +82,54 @@ st.markdown("""
 # ==========================================
 # 3. INTERACTIVE 9x9 GRID RENDERING (With 3x3 Box Borders)
 # ==========================================
+# ==========================================
+# 3. INTERACTIVE 9x9 GRID RENDERING (With Thick 3x3 Borders)
+# ==========================================
 for r in range(9):
     cols = st.columns(9)
     for c in range(9):
         original_val = STARTING_BOARD[r][c]
         current_val = st.session_state.current_matrix[r][c]
         
-        # Calculate dynamic borders to outline the 9 sub-boxes cleanly
-        top_border = "2px solid black" if r == 0 else ("2px solid black" if r % 3 == 0 else "1px solid #C0C0C0")
-        left_border = "2px solid black" if c == 0 else ("2px solid black" if c % 3 == 0 else "1px solid #C0C0C0")
-        right_border = "2px solid black" if c == 8 else ("2px solid black" if (c + 1) % 3 == 0 else "1px solid #C0C0C0")
-        bottom_border = "2px solid black" if r == 8 else ("2px solid black" if (r + 1) % 3 == 0 else "1px solid #C0C0C0")
+        # Calculate distinct border thickness for 3x3 block boundaries
+        top_border = "3px solid #000000" if (r % 3 == 0 and r != 0) else "1px solid #A0A0A0"
+        left_border = "3px solid #000000" if (c % 3 == 0 and c != 0) else "1px solid #A0A0A0"
+        bottom_border = "3px solid #000000" if r == 8 else "1px solid #A0A0A0"
+        right_border = "3px solid #000000" if c == 8 else "1px solid #A0A0A0"
         
-        box_style = f"""
+        style_string = f"""
             text-align: center; 
-            border-top: {top_border}; 
-            border-left: {left_border}; 
-            border-right: {right_border}; 
-            border-bottom: {bottom_border};
-            border-radius: 0px; 
-            padding: 8px; 
             font-weight: bold; 
-            font-size: 18px;
+            font-size: 18px; 
+            padding: 8px; 
+            border-top: {top_border}; 
+            border-left: {left_border};
+            border-bottom: {bottom_border};
+            border-right: {right_border};
         """
-
+        
         if original_val != 0:
-            # Locked clues (Grey background)
+            # Locked clues (Grey Background)
             cols[c].markdown(
-                f"<div style='{box_style} background-color: #E0E0E0; color: #333;'>{original_val}</div>", 
+                f"<div style='{style_string} background-color: #E0E0E0; color: #333; border-radius: 4px;'>{original_val}</div>", 
                 unsafe_allow_html=True
             )       
         else:
-            # Player entry blocks (White background, blue text)
+            # Player entry blocks (White Background with Blue Text Input simulation)
+            # We use an outer markdown div wrapper to enforce the strict 3x3 border box system around the input
             val_str = str(current_val) if current_val != 0 else ""
             
-            # Using st.components or HTML styling wrapper to force inline custom borders on text fields
-            user_entry = cols[c].text_input(
-                "", 
-                value=val_str, 
-                max_chars=1, 
-                key=f"cell_{r}_{c}", 
-                label_visibility="collapsed"
-            )
-            
-            # Update state immediately based on numeric validation
-            st.session_state.current_matrix[r][c] = int(user_entry) if (user_entry.isdigit() and 1 <= int(user_entry) <= 9) else 0
+            # Create a clean input container
+            with cols[c]:
+                user_entry = st.text_input(
+                    "", 
+                    value=val_str, 
+                    max_chars=1, 
+                    key=f"cell_{r}_{c}", 
+                    label_visibility="collapsed"
+                )
+                # Update state matrix based on valid inputs
+                st.session_state.current_matrix[r][c] = int(user_entry) if (user_entry.isdigit() and 1 <= int(user_entry) <= 9) else 0
 st.markdown("---")
 
 # ==========================================
