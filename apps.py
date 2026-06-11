@@ -96,57 +96,81 @@ for msg in active_messages:
 # ==========================================
 # 5. DYNAMIC INPUT RUNTIME LOOP
 # ==========================================
+# ==========================================
+# 5. DYNAMIC INPUT RUNTIME LOOP (OPTIMIZED)
+# ==========================================
 if user_input := st.chat_input("What would you like me to look up or calculate?"):
     if not os.getenv("GEMINI_API_KEY"):
         st.error("Please enter a free Gemini API key in the sidebar.")
         st.stop()
 
-    # Initialize the official Google GenAI Client
     client = genai.Client()
 
-    # Show user input immediately
+    # 1. Update Title if it's the first message
+    if st.session_state.all_chats[current_chat_id]["title"] == "New Chat":
+        st.session_state.all_chats[current_chat_id]["title"] = user_input[:22] + "..." if len(user_input) > 22 else user_input
+
+    # 2. Show user input
     with st.chat_message("user"):
         st.write(user_input)
     active_messages.append({"role": "user", "content": user_input})
 
-    with st.chat_message("assistant"):
-        # Setup modern tool execution declaration for Gemini
-        config = types.GenerateContentConfig(
-            system_instruction=(
-                "You are an autonomous AI agent. Use your internal knowledge to answer "
-                "general science, history, and conceptual questions directly. Only deploy the "
-                "web_search tool for real-time live events, news, or data you do not know. "
-                "Only use the investment tool for compound calculations."
-            ),
-            tools=[calculate_investment_growth, web_search], 
-            temperature=0.3
-        )
-        
-        # Format the historical array for Gemini's structure
-        gemini_history = []
-        for msg in active_messages:
-            gemini_role = "model" if msg["role"] == "assistant" else msg["role"]
-            gemini_history.append(
-                types.Content(
-                    role=gemini_role, 
-                    parts=[types.Part.from_text(text=msg["content"])]
-                )
-            )
+    # 3. Setup Config
+    config = types.GenerateContentConfig(
+        system_instruction=(
+            "You are an autonomous AI agent. Use your internal knowledge for science/history. "
+            "Deploy the web_search tool for real-time events. "
+            "Use the investment tool for compound calculations only."
+        ),
+        tools=[calculate_investment_growth, web_search], 
+        temperature=0.3
+    )
+    
+    # 4. History Prep
+    gemini_history = []
+    for msg in active_messages:
+        gemini_role = "model" if msg["role"] == "assistant" else msg["role"]
+        gemini_history.append(types.Content(role=gemini_role, parts=[types.Part.from_text(text=msg["content"])]))
 
-        # Safe execution wrapper to intercept 503 Overloaded Server spikes
+    # 5. Generation
+    with st.chat_message("assistant"):
         try:
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-2.0-flash', # Changed to stable 2.0
                 contents=gemini_history,
                 config=config
             )
-        except Exception as e:
-            if "503" in str(e) or "UNAVAILABLE" in str(e).upper():
-                st.error("⚠️ Google's free servers are currently overloaded. Please wait a few seconds and try resending your message!")
-            else:
-                st.error(f"An unexpected error occurred: {str(e)}")
-            st.stop()
 
+            # Handle Tools
+            if response.function_calls:
+                for call in response.function_calls:
+                    tool_name = call.name
+                    tool_args = call.args
+                    
+                    with st.status(f"🤖 Agent executing: {tool_name}...", expanded=True) as status:
+                        observation = AVAILABLE_TOOLS[tool_name](**tool_args)
+                        st.code(observation, language="text")
+                        status.update(label=f"✓ Tool Complete", state="complete", expanded=False)
+
+                    # Tool Response Synthesis
+                    follow_up = gemini_history + [
+                        types.Content(role="model", parts=[types.Part.from_function_call(name=tool_name, args=tool_args)]),
+                        types.Content(role="user", parts=[types.Part.from_function_response(name=tool_name, response={"result": observation})])
+                    ]
+                    
+                    final_response = client.models.generate_content(
+                        model='gemini-2.0-flash',
+                        contents=follow_up,
+                        config=config
+                    )
+                    st.write(final_response.text)
+                    active_messages.append({"role": "assistant", "content": final_response.text})
+            else:
+                st.write(response.text)
+                active_messages.append({"role": "assistant", "content": response.text})
+                
+        except Exception as e:
+            st.error(f"⚠️ Error: {str(e)}")
         # Handle autonomous tool loops seamlessly
         if response.function_calls:
             for call in response.function_calls:
