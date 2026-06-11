@@ -3,55 +3,63 @@ import chess
 import chess.svg
 import base64
 
-st.set_page_config(page_title="Click-to-Move Chess", layout="centered")
-st.title("♔ Autonomous Chess Arena")
+st.set_page_config(page_title="Pro Chess Engine", layout="centered")
+st.title("♟️ Autonomous Grandmaster Arena")
 
-# Initialize Session State
 if "board" not in st.session_state:
     st.session_state.board = chess.Board()
 if "source" not in st.session_state:
     st.session_state.source = None
 
-# Game Logic Fragment (Fixed for 2026 Streamlit)
-@st.fragment
-def render_board():
-    board = st.session_state.board
-    
-    # 8x8 Grid
-    for rank in range(7, -1, -1):
-        cols = st.columns(8)
-        for file in range(8):
-            sq = chess.square(file, rank)
-            piece = board.piece_at(sq)
-            
-            # Button Label (Piece or empty)
-            label = piece.symbol() if piece else " "
-            
-            if cols[file].button(label, key=f"sq_{sq}"):
-                if st.session_state.source is None:
-                    # First click: Select
-                    if piece and piece.color == board.turn:
-                        st.session_state.source = sq
-                else:
-                    # Second click: Move
-                    move = chess.Move(st.session_state.source, sq)
-                    
-                    # Handle Pawn Promotion (Auto Queen)
-                    if piece and piece.piece_type == chess.PAWN and (rank == 0 or rank == 7):
-                        move.promotion = chess.QUEEN
-                    
-                    if move in board.legal_moves:
-                        board.push(move)
-                    
-                    st.session_state.source = None
-                    st.rerun()
+# 1. Custom SVG board generator with clean click targets
+def get_interactive_svg(board):
+    # Hum SVG ko string format me lenge
+    svg = chess.svg.board(board=board, size=500, coordinates=True)
+    # SVG me hum 'onclick' javascript inject karenge
+    svg = svg.replace("<svg", '<svg id="chess-board"')
+    return svg
 
-    # Display Board
-    svg = chess.svg.board(board=board, size=400)
-    st.image(f"data:image/svg+xml;base64,{base64.b64encode(svg.encode()).decode()}", use_container_width=True)
+st.markdown("### ♟️ Click on any piece to select, then click target square")
 
-render_board()
+# Display area
+board_svg = get_interactive_svg(st.session_state.board)
+# Hum yahan 'st.components.v1.html' ka use karenge taaki SVG native click events trigger kare
+import streamlit.components.v1 as components
 
-if st.button("Reset Game"):
-    st.session_state.board = chess.Board()
-    st.rerun()
+# Logic to handle clicks
+click_js = """
+<script>
+    const board = document.getElementById('chess-board');
+    board.addEventListener('click', function(e) {
+        // Logic to calculate square from pixel click (500px board / 8 = 62.5px per cell)
+        const rect = board.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const file = Math.floor(x / 62.5);
+        const rank = 7 - Math.floor(y / 62.5);
+        const square = rank * 8 + file;
+        
+        window.parent.postMessage({type: 'streamlit:setComponentValue', value: square}, '*');
+    });
+</script>
+"""
+
+# Render
+clicked_sq = components.html(board_svg + click_js, height=520, width=520)
+
+# Backend logic processor
+if clicked_sq is not None:
+    sq = int(clicked_sq)
+    if st.session_state.source is None:
+        if st.session_state.board.piece_at(sq):
+            st.session_state.source = sq
+            st.toast(f"Selected: {chess.square_name(sq)}")
+    else:
+        move = chess.Move(st.session_state.source, sq)
+        if move in st.session_state.board.legal_moves:
+            st.session_state.board.push(move)
+            st.session_state.source = None
+            st.rerun()
+        else:
+            st.session_state.source = None
+            st.toast("Illegal move, bhai!")
