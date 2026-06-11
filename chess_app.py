@@ -1,6 +1,6 @@
 import streamlit as st
 import chess
-from stchess import board as render_web_board
+from streamlit_chess_viewer import chess_viewer
 
 # ==========================================
 # 1. UI HEADER CONFIGURATION
@@ -22,12 +22,31 @@ board = st.session_state.sandbox_board
 with st.sidebar:
     st.header("⚙️ Match Controller")
     
-    # Quick indicators for your presentation
     st.markdown(f"**Active Turn:** {'⚪ White' if board.turn == chess.WHITE else '⚫ Black'}")
     st.markdown(f"**Total Moves Played:** {len(board.move_stack)}")
-    st.markdown(f"**Checkmate State:** {board.is_checkmate()}")
+    st.markdown(f"**Checkmate State:** {'⚠️ Yes' if board.is_checkmate() else '❌ No'}")
     
     st.markdown("---")
+    
+    # Manual text entry fallback for maximum reliability across Python 3.14
+    st.subheader("♟️ Input Next Move")
+    user_move = st.text_input("Enter UCI Move (e.g., e2e4, g1f3):", key="move_input_field").strip()
+    
+    if st.button("🚀 Submit Move", use_container_width=True, type="primary"):
+        if user_move:
+            try:
+                proposed_move = chess.Move.from_uci(user_move)
+                if proposed_move in board.legal_moves:
+                    board.push(proposed_move)
+                    st.session_state.move_log.append(user_move)
+                    st.success(f"Move {user_move} applied successfully!")
+                    time.sleep(0.5)
+                    st.rerun()
+                else:
+                    st.error("❌ Illegal move for the current board state!")
+            except Exception:
+                st.error("❌ Invalid format! Please use standard UCI syntax (e.g., e2e4).")
+
     if st.button("🔄 Reset Match Board", use_container_width=True, type="secondary"):
         st.session_state.sandbox_board = chess.Board()
         st.session_state.move_log = []
@@ -36,35 +55,12 @@ with st.sidebar:
 # ==========================================
 # 3. BROWSER GRID RENDERING
 # ==========================================
-# Determines board orientation based on current turn
-current_orientation = "white" if board.turn == chess.WHITE else "black"
-
-move_data = render_web_board(
-    fen=board.fen(),
-    orientation=current_orientation,
-    key="sandbox_chess_canvas"
-)
+# Renders the board as a beautiful, static SVG asset generated directly by python-chess
+chess_viewer(fen=board.fen())
 
 # ==========================================
-# 4. ENGINE MOVE VALIDATION LOOP
-# ==========================================
-if move_data and "history" in move_data and len(move_data["history"]) > 0:
-    raw_last_move = move_data["history"][-1]
-    
-    # Check if this move is already in our history stack to prevent loops
-    if len(st.session_state.move_log) == 0 or raw_last_move != st.session_state.move_log[-1]:
-        try:
-            proposed_move = chess.Move.from_uci(raw_last_move)
-            if proposed_move in board.legal_moves:
-                board.push(proposed_move)
-                st.session_state.move_log.append(raw_last_move)
-                st.rerun()
-        except Exception:
-            pass
-
-# ==========================================
-# 5. LIVE MOVE FEED
+# 4. LIVE MOVE FEED
 # ==========================================
 if st.session_state.move_log:
     st.markdown("### 📋 Game Notation History")
-    st.caption(", ".join(st.session_state.move_log))
+    st.info(", ".join(st.session_state.move_log))
