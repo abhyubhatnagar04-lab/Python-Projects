@@ -12,8 +12,8 @@ if "board" not in st.session_state:
 if "source" not in st.session_state:
     st.session_state.source = None
 
-# Game Logic Fragment
-@st.experimental_fragment
+# Game Logic Fragment (Fixed for 2026 Streamlit)
+@st.fragment
 def render_board():
     board = st.session_state.board
     
