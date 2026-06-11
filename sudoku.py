@@ -79,21 +79,44 @@ st.markdown("""
 # ==========================================
 # 3. INTERACTIVE 9x9 GRID RENDERING (Fixed Indentation)
 # ==========================================
+# ==========================================
+# 3. INTERACTIVE 9x9 GRID RENDERING (With 3x3 Box Borders)
+# ==========================================
 for r in range(9):
     cols = st.columns(9)
     for c in range(9):
         original_val = STARTING_BOARD[r][c]
         current_val = st.session_state.current_matrix[r][c]
         
+        # Calculate dynamic borders to outline the 9 sub-boxes cleanly
+        top_border = "2px solid black" if r == 0 else ("2px solid black" if r % 3 == 0 else "1px solid #C0C0C0")
+        left_border = "2px solid black" if c == 0 else ("2px solid black" if c % 3 == 0 else "1px solid #C0C0C0")
+        right_border = "2px solid black" if c == 8 else ("2px solid black" if (c + 1) % 3 == 0 else "1px solid #C0C0C0")
+        bottom_border = "2px solid black" if r == 8 else ("2px solid black" if (r + 1) % 3 == 0 else "1px solid #C0C0C0")
+        
+        box_style = f"""
+            text-align: center; 
+            border-top: {top_border}; 
+            border-left: {left_border}; 
+            border-right: {right_border}; 
+            border-bottom: {bottom_border};
+            border-radius: 0px; 
+            padding: 8px; 
+            font-weight: bold; 
+            font-size: 18px;
+        """
+
         if original_val != 0:
-            # Locked clues
+            # Locked clues (Grey background)
             cols[c].markdown(
-                f"<div style='text-align:center; background-color:#E0E0E0; border-radius:4px; padding:8px; font-weight:bold; font-size:18px; color:#333;'>{original_val}</div>", 
+                f"<div style='{box_style} background-color: #E0E0E0; color: #333;'>{original_val}</div>", 
                 unsafe_allow_html=True
             )       
         else:
-            # Player entry blocks
+            # Player entry blocks (White background, blue text)
             val_str = str(current_val) if current_val != 0 else ""
+            
+            # Using st.components or HTML styling wrapper to force inline custom borders on text fields
             user_entry = cols[c].text_input(
                 "", 
                 value=val_str, 
@@ -101,9 +124,9 @@ for r in range(9):
                 key=f"cell_{r}_{c}", 
                 label_visibility="collapsed"
             )
+            
             # Update state immediately based on numeric validation
             st.session_state.current_matrix[r][c] = int(user_entry) if (user_entry.isdigit() and 1 <= int(user_entry) <= 9) else 0
-
 st.markdown("---")
 
 # ==========================================
