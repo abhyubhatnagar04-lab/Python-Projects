@@ -51,25 +51,42 @@ if "solution_key" not in st.session_state:
     solve_backtrack(master_key)
     st.session_state.solution_key = master_key
 
+# Initialize matrix state
+if "current_matrix" not in st.session_state:
+    st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
+
 # ==========================================
-# 2. STATE INTERFACE RUNTIME
+# 2. CALLBACK FUNCTIONS (The Button Fix)
+# ==========================================
+def run_auto_solve():
+    temp_board = [row[:] for row in STARTING_BOARD]
+    start_time = time.time()
+    if solve_backtrack(temp_board):
+        elapsed = time.time() - start_time
+        # Clear specific widget states from memory
+        for r in range(9):
+            for c in range(9):
+                if f"cell_{r}_{c}" in st.session_state:
+                    del st.session_state[f"cell_{r}_{c}"]
+        st.session_state.current_matrix = temp_board
+        st.session_state.solve_msg = f"✅ Solved by backtracking engine in {elapsed:.4f} seconds!"
+
+def run_reset_board():
+    for r in range(9):
+        for c in range(9):
+            if f"cell_{r}_{c}" in st.session_state:
+                del st.session_state[f"cell_{r}_{c}"]
+    st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
+    if "solve_msg" in st.session_state:
+        del st.session_state.solve_msg
+
+# ==========================================
+# 3. STATE INTERFACE RUNTIME & CSS
 # ==========================================
 st.set_page_config(page_title="Web Sudoku Engine", page_icon="🧩", layout="centered")
 st.title("🧩 Autonomous Sudoku Solver")
 st.caption("Interactive browser version of your PyQt5 engine layout")
 
-# Maintain dynamic live state matrix
-if "current_matrix" not in st.session_state:
-    st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
-
-# Helper function to completely purge text input caches on Reset/Solve
-def clear_input_widgets():
-    for r in range(9):
-        for c in range(9):
-            if f"cell_{r}_{c}" in st.session_state:
-                del st.session_state[f"cell_{r}_{c}"]
-
-# CSS injection to clean up inputs and visually simulate grid boxes
 st.markdown("""
     <style>
     div[data-testid="stHorizontalBlock"] {
@@ -79,12 +96,13 @@ st.markdown("""
         text-align: center !important;
         font-weight: bold !important;
         font-size: 20px !important;
+        height: 42px !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. INTERACTIVE 9x9 GRID RENDERING
+# 4. INTERACTIVE 9x9 GRID RENDERING
 # ==========================================
 for r in range(9):
     cols = st.columns(9)
@@ -106,7 +124,7 @@ for r in range(9):
                 key=f"cell_{r}_{c}", 
                 label_visibility="collapsed"
             )
-            # Safe live update to state matrix
+            # Soft fallback update during manual typing
             if user_entry.isdigit() and 1 <= int(user_entry) <= 9:
                 st.session_state.current_matrix[r][c] = int(user_entry)
             elif user_entry == "":
@@ -115,19 +133,12 @@ for r in range(9):
 st.markdown("---")
 
 # ==========================================
-# 4. ACTION TRIGGERS
+# 5. ACTION TRIGGERS WITH DIRECT CALLBACKS
 # ==========================================
 btn_col1, btn_col2, btn_col3 = st.columns(3)
 
-if btn_col1.button("🤖 Auto-Solve Board", use_container_width=True):
-    temp_board = [row[:] for row in STARTING_BOARD]
-    start_time = time.time()
-    if solve_backtrack(temp_board):
-        elapsed = time.time() - start_time
-        clear_input_widgets() # Clear cache so new matrix numbers display
-        st.session_state.current_matrix = temp_board
-        st.success(f"Solved by backtracking engine in {elapsed:.4f} seconds!")
-        st.rerun()
+# Hooking click events directly to the memory modifier functions
+btn_col1.button("🤖 Auto-Solve Board", use_container_width=True, on_click=run_auto_solve)
 
 if btn_col2.button("🔍 Check My Answers", use_container_width=True):
     matrix = st.session_state.current_matrix
@@ -149,7 +160,8 @@ if btn_col2.button("🔍 Check My Answers", use_container_width=True):
         else:
             st.info("👍 Looking good so far! No mistakes found. Keep filling!")
 
-if btn_col3.button("🔄 Reset Board", use_container_width=True, type="secondary"):
-    clear_input_widgets() # Wipe out old browser cache completely
-    st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
-    st.rerun()
+btn_col3.button("🔄 Reset Board", use_container_width=True, type="secondary", on_click=run_reset_board)
+
+# Display solve processing duration message if active
+if "solve_msg" in st.session_state:
+    st.info(st.session_state.solve_msg)
