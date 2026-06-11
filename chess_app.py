@@ -8,28 +8,28 @@ st.set_page_config(page_title="Premium Chess Arena", page_icon="♔", layout="ce
 st.title("♔ Autonomous Chess Arena")
 st.caption("Clean Graphical Matrix — High-Resolution Asset Rendering")
 
-# Heavy styling to force proper block sizing and high-contrast square colors
+# Heavy styling to force proper block sizing and high-contrast square colors using button keys
 st.markdown("""
     <style>
-    /* Dark square button color */
-    div.stButton > button.dark-btn {
+    /* Dark squares styling based on unique string pattern matching */
+    div.stButton > button[key^="btn_dark_"] {
         background-color: #b58863 !important;
         color: #f0d9b5 !important;
         border: none !important;
         border-radius: 0px !important;
-        height: 35px !important;
+        height: 38px !important;
         font-weight: bold !important;
     }
-    /* Light square button color */
-    div.stButton > button.light-btn {
+    /* Light squares styling based on unique string pattern matching */
+    div.stButton > button[key^="btn_light_"] {
         background-color: #f0d9b5 !important;
         color: #b58863 !important;
         border: none !important;
         border-radius: 0px !important;
-        height: 35px !important;
+        height: 38px !important;
         font-weight: bold !important;
     }
-    /* Hover wrapper logic */
+    /* Hover highlight feedback */
     div.stButton > button:hover {
         border: 2px solid #ffcc00 !important;
     }
@@ -44,12 +44,12 @@ st.markdown("""
         text-align: center !important;
         box-sizing: border-box;
     }
-    /* Box border container for the full grid layout */
+    /* Box container background colors */
     .chess-cell-box {
         padding: 5px;
         border-radius: 4px;
         transition: all 0.2s;
-    }}
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -69,7 +69,7 @@ PIECE_IMAGES = {
     'k': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 }
 
-# 1x1 Transparent pixel fallback so spacing never breaks
+# 1x1 Transparent pixel fallback
 EMPTY_SQUARE = "https://upload.wikimedia.org/wikipedia/commons/c/ca/1x1.png"
 
 # Session state initialization
@@ -111,7 +111,6 @@ with st.sidebar:
 # ==========================================
 st.write("### ♟️ Click Piece -> Then Click Target Square")
 
-# Outer container wrapper
 for rank in range(7, -1, -1):
     grid_cols = st.columns(8)
     for file in range(8):
@@ -121,7 +120,7 @@ for rank in range(7, -1, -1):
         # Track dark vs light background cells dynamically
         is_dark = (rank + file) % 2 == 0
         bg_color = "#b58863" if is_dark else "#f0d9b5"
-        sq_class = "dark-btn" if is_dark else "light-btn"
+        sq_type = "dark" if is_dark else "light"
         
         # Setup selection highlights or pull piece URL
         is_selected = st.session_state.selected_square == square_idx
@@ -129,7 +128,6 @@ for rank in range(7, -1, -1):
         img_url = PIECE_IMAGES[piece.symbol()] if piece else EMPTY_SQUARE
         
         with grid_cols[file]:
-            # Wrap the st.image natively inside a div styled with the correct block colors!
             st.markdown(
                 f'<div class="chess-cell-box" style="background-color: {bg_color};">', 
                 unsafe_allow_html=True
@@ -137,8 +135,8 @@ for rank in range(7, -1, -1):
             st.image(img_url, width=44)
             st.markdown('</div>', unsafe_allow_html=True)
             
-            # Interactive action trigger block
-            if st.button(btn_caption, key=f"btn_{rank}_{file}", use_container_width=True, class_name=sq_class):
+            # Interactive action trigger block (FIXED: removed invalid class_name)
+            if grid_cols[file].button(btn_caption, key=f"btn_{sq_type}_{rank}_{file}", use_container_width=True):
                 if st.session_state.selected_square is None:
                     # First click: Selection
                     if piece and piece.color == board.turn:
