@@ -4,19 +4,18 @@ import chess
 st.set_page_config(page_title="Chess Arena", layout="centered")
 st.title("♟️ Professional Chess Arena")
 
-# CSS to make buttons invisible/transparent and fit perfectly in the grid
+# CSS: Button ko pura invisible/absolute ghost bana diya hai
 st.markdown("""
     <style>
-    div[data-testid="column"] { padding: 0px !important; }
     .stButton > button {
-        width: 100% !important;
-        height: 50px !important;
-        padding: 0 !important;
-        border: none !important;
         background: transparent !important;
+        border: none !important;
+        height: 50px !important;
+        width: 100% !important;
+        color: transparent !important;
     }
-    .sq-light { background-color: #f0d9b5; }
-    .sq-dark { background-color: #b58863; }
+    .stButton > button:hover { background: rgba(255, 255, 255, 0.2) !important; }
+    div[data-testid="column"] { padding: 0 !important; margin: 0 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -25,26 +24,25 @@ if "board" not in st.session_state:
 if "source" not in st.session_state:
     st.session_state.source = None
 
-# Piece Unicode
+# Piece Unicode (Size badha diya taaki board pe dikhe)
 PIECES = {'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
           'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'}
 
-# Board Rendering
 board = st.session_state.board
 for rank in range(7, -1, -1):
     cols = st.columns(8)
     for file in range(8):
         sq = chess.square(file, rank)
         piece = board.piece_at(sq)
-        bg = "sq-dark" if (rank + file) % 2 == 0 else "sq-light"
+        bg = "#b58863" if (rank + file) % 2 == 0 else "#f0d9b5"
         
-        # Display piece if exists
+        # Piece display logic
         symbol = PIECES.get(piece.symbol(), " ") if piece else " "
         
-        # Render button
         with cols[file]:
-            st.markdown(f'<div class="{bg}">', unsafe_allow_html=True)
-            if st.button(symbol, key=f"sq_{sq}"):
+            # Div ke andar Piece dikha rahe hain, button upar invisible hai
+            st.markdown(f'<div style="background-color:{bg}; height:50px; display:flex; align-items:center; justify-content:center; font-size:30px;">{symbol}</div>', unsafe_allow_html=True)
+            if st.button(" ", key=f"sq_{sq}"):
                 if st.session_state.source is None:
                     if piece and piece.color == board.turn:
                         st.session_state.source = sq
@@ -54,7 +52,6 @@ for rank in range(7, -1, -1):
                         board.push(move)
                     st.session_state.source = None
                     st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
 
 if st.button("Reset Game"):
     st.session_state.board = chess.Board()
