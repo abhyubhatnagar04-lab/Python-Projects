@@ -4,67 +4,97 @@ import chess.svg
 import base64
 
 # ==========================================
-# 1. UI HEADER CONFIGURATION
+# 1. UI CONFIGURATION
 # ==========================================
-st.set_page_config(page_title="Chess Engine Sandbox", page_icon="♔", layout="centered")
+st.set_page_config(page_title="Interactive Chess Arena", page_icon="♔", layout="centered")
 st.title("♔ Autonomous Chess Arena")
-st.caption("Pure SVG rendering driven by your backend python-chess rules")
+st.caption("Click-to-Move Interactive Grid Powered Natively by Python-Chess")
 
-# Initialize central board state in memory
-if "sandbox_board" not in st.session_state:
-    st.session_state.sandbox_board = chess.Board()
+# Session state initialization
+if "board" not in st.session_state:
+    st.session_state.board = chess.Board()
+if "selected_square" not in st.session_state:
+    st.session_state.selected_square = None
+if "move_log" not in st.session_state:
     st.session_state.move_log = []
 
-board = st.session_state.sandbox_board
+board = st.session_state.board
 
 # ==========================================
-# 2. SIDEBAR ENGINE METADATA & INPUT
+# 2. MATCH METADATA & CONTROL PANEL
 # ==========================================
 with st.sidebar:
-    st.header("⚙️ Match Controller")
-    st.markdown(f"**Active Turn:** {'⚪ White' if board.turn == chess.WHITE else '⚫ Black'}")
-    st.markdown(f"**Total Moves:** {len(board.move_stack)}")
-    st.markdown(f"**Checkmate:** {'⚠️ YES' if board.is_checkmate() else '❌ No'}")
+    st.header("⚙️ Game Controls")
+    st.markdown(f"**Turn:** {'⚪ White' if board.turn == chess.WHITE else '⚫ Black'}")
+    st.markdown(f"**Moves Played:** {len(board.move_stack)}")
     
-    st.markdown("---")
-    
-    # Text input fallback for maximum reliability across Python 3.14
-    st.subheader("♟️ Input Next Move")
-    user_move = st.text_input("Enter UCI Move (e.g., e2e4, g1f3):", key="move_input_field").strip()
-    
-    if st.button("🚀 Submit Move", use_container_width=True, type="primary"):
-        if user_move:
-            try:
-                proposed_move = chess.Move.from_uci(user_move)
-                if proposed_move in board.legal_moves:
-                    board.push(proposed_move)
-                    st.session_state.move_log.append(user_move)
-                    st.toast(f"Move {user_move} applied!", icon="✅")
-                    st.rerun()
-                else:
-                    st.error("❌ Illegal move for this position!")
-            except Exception:
-                st.error("❌ Invalid syntax! Use format like e2e4.")
+    if st.session_state.selected_square is not None:
+        sq_name = chess.square_name(st.session_state.selected_square)
+        st.info(f"📍 Selected Piece Row/Col: **{sq_name.upper()}**")
+        if st.button("❌ Cancel Selection", use_container_width=True):
+            st.session_state.selected_square = None
+            st.rerun()
+    else:
+        st.warning("🎯 Click any piece on the board below to select it.")
 
-    if st.button("🔄 Reset Match Board", use_container_width=True, type="secondary"):
-        st.session_state.sandbox_board = chess.Board()
+    st.markdown("---")
+    if st.button("🔄 Reset Board", use_container_width=True, type="secondary"):
+        st.session_state.board = chess.Board()
+        st.session_state.selected_square = None
         st.session_state.move_log = []
         st.rerun()
 
 # ==========================================
-# 3. DIRECT SVG BOARD RENDERING (Zero Bugs)
+# 3. INTERACTIVE CLICK-GRID GENERATION
 # ==========================================
-# Generates high-res vector graphics on the fly
-board_svg = chess.svg.board(board=board, size=450)
-b64_svg = base64.b64encode(board_svg.encode('utf-8')).decode('utf-8')
+# We build a functional 8x8 button grid overlapping the logic coordinates
+cols_labels = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 
-# Centering the board natively via HTML injection
-st.markdown(
-    f'<div style="display: flex; justify-content: center;">'
-    f'<img src="data:image/svg+xml;base64,{b64_svg}" width="450"/>'
-    f'</div>',
-    unsafe_allow_html=True
-)
+st.write("### ♟️ Click Piece -> Then Click Target Square")
+
+# Render board from rank 8 down to 1
+for rank in range(7, -1, -1):
+    grid_cols = st.columns(8)
+    for file in range(8):
+        square_idx = chess.square(file, rank)
+        piece = board.piece_at(square_idx)
+        
+        # Determine button label based on chess piece symbol
+        btn_label = piece.symbol() if piece else "·"
+        
+        # Color styling logic for selection highlights
+        if st.session_state.selected_square == square_idx:
+            btn_label = f"⭐ {btn_label}"
+            
+        # Trigger interactive logic on square tap
+        if grid_cols[file].button(btn_label, key=f"sq_{rank}_{file}", use_container_width=True):
+            if st.session_state.selected_square is None:
+                # First click: Select the source piece
+                if piece and piece.color == board.turn:
+                    st.session_state.selected_square = square_idx
+                    st.rerun()
+                else:
+                    st.error("It's not your piece's turn!")
+            else:
+                # Second click: Execute move to target destination
+                source_sq = st.session_state.selected_square
+                target_sq = square_idx
+                proposed_move = chess.Move(source_sq, target_sq)
+                
+                # Handle automatic pawn promotion to Queen
+                if piece and piece.piece_type == chess.PAWN and rank in [0, 7]:
+                    proposed_move.promotion = chess.QUEEN
+                
+                if proposed_move in board.legal_moves:
+                    board.push(proposed_move)
+                    st.session_state.move_log.append(proposed_move.uci())
+                    st.toast(f"Move {proposed_move.uci()} applied successfully!")
+                else:
+                    st.error("❌ Illegal Move Attempted!")
+                
+                # Reset selection state
+                st.session_state.selected_square = None
+                st.rerun()
 
 st.markdown("---")
 
