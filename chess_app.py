@@ -2,32 +2,58 @@ import streamlit as st
 import chess
 
 # ==========================================
-# 1. UI CONFIGURATION & BOARD STYLING
+# 1. UI CONFIGURATION & TOURNAMENT GRID STYLING
 # ==========================================
 st.set_page_config(page_title="Premium Chess Arena", page_icon="♔", layout="centered")
 st.title("♔ Autonomous Chess Arena")
 st.caption("Clean Graphical Matrix — High-Resolution Asset Rendering")
 
-# Minimal CSS to align grid cells smoothly
+# Heavy styling to force proper block sizing and high-contrast square colors
 st.markdown("""
     <style>
+    /* Dark square button color */
+    div.stButton > button.dark-btn {
+        background-color: #b58863 !important;
+        color: #f0d9b5 !important;
+        border: none !important;
+        border-radius: 0px !important;
+        height: 35px !important;
+        font-weight: bold !important;
+    }
+    /* Light square button color */
+    div.stButton > button.light-btn {
+        background-color: #f0d9b5 !important;
+        color: #b58863 !important;
+        border: none !important;
+        border-radius: 0px !important;
+        height: 35px !important;
+        font-weight: bold !important;
+    }
+    /* Hover wrapper logic */
+    div.stButton > button:hover {
+        border: 2px solid #ffcc00 !important;
+    }
+    /* Eliminate padding bloat between ranks */
     div[data-testid="stHorizontalBlock"] {
         gap: 0px !important;
         margin-bottom: 0px !important;
+        background-color: #e0d6cd;
     }
     div[data-testid="column"] {
-        padding: 0px !important;
+        padding: 2px !important;
         text-align: center !important;
-    }
-    /* Highlight effect for selections */
-    .selected-sq {
-        border: 3px solid #ffcc00 !important;
         box-sizing: border-box;
     }
+    /* Box border container for the full grid layout */
+    .chess-cell-box {
+        padding: 5px;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }}
     </style>
 """, unsafe_allow_html=True)
 
-# Wikimedia high-quality chess pieces URLs
+# High-quality vector graphics links for pieces
 PIECE_IMAGES = {
     'P': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
     'R': 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
@@ -43,7 +69,7 @@ PIECE_IMAGES = {
     'k': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 }
 
-# Fallback transparent placeholder for empty squares so layout stays intact
+# 1x1 Transparent pixel fallback so spacing never breaks
 EMPTY_SQUARE = "https://upload.wikimedia.org/wikipedia/commons/c/ca/1x1.png"
 
 # Session state initialization
@@ -57,7 +83,7 @@ if "move_log" not in st.session_state:
 board = st.session_state.board
 
 # ==========================================
-# 2. SIDEBAR METADATA PANEL
+# 2. SIDEBAR INFORMATION PANEL
 # ==========================================
 with st.sidebar:
     st.header("⚙️ Match Controller")
@@ -71,7 +97,7 @@ with st.sidebar:
             st.session_state.selected_square = None
             st.rerun()
     else:
-        st.warning("💡 Click a piece to select, then click target square.")
+        st.warning("💡 Click a piece coordinate to select, then click target square.")
 
     st.markdown("---")
     if st.button("🔄 Reset Board Matrix", use_container_width=True, type="secondary"):
@@ -81,28 +107,38 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 3. GRAPHICAL 8x8 GRID VIA ST.IMAGE
+# 3. GRAPHICAL 8x8 GRID WITH COMBINED STYLING
 # ==========================================
 st.write("### ♟️ Click Piece -> Then Click Target Square")
 
+# Outer container wrapper
 for rank in range(7, -1, -1):
     grid_cols = st.columns(8)
     for file in range(8):
         square_idx = chess.square(file, rank)
         piece = board.piece_at(square_idx)
         
-        # Get appropriate piece asset URL
-        img_url = PIECE_IMAGES[piece.symbol()] if piece else EMPTY_SQUARE
+        # Track dark vs light background cells dynamically
+        is_dark = (rank + file) % 2 == 0
+        bg_color = "#b58863" if is_dark else "#f0d9b5"
+        sq_class = "dark-btn" if is_dark else "light-btn"
         
-        # Render clean image directly using Streamlit's native image container
-        # We use st.button with an overlay or a helper text below it for solid activation
+        # Setup selection highlights or pull piece URL
         is_selected = st.session_state.selected_square == square_idx
         btn_caption = "⭐" if is_selected else f"{chess.square_name(square_idx).upper()}"
+        img_url = PIECE_IMAGES[piece.symbol()] if piece else EMPTY_SQUARE
         
         with grid_cols[file]:
-            st.image(img_url, width=48)
-            # Small structural button directly under the asset for 100% click reliability
-            if st.button(btn_caption, key=f"btn_{rank}_{file}", use_container_width=True):
+            # Wrap the st.image natively inside a div styled with the correct block colors!
+            st.markdown(
+                f'<div class="chess-cell-box" style="background-color: {bg_color};">', 
+                unsafe_allow_html=True
+            )
+            st.image(img_url, width=44)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Interactive action trigger block
+            if st.button(btn_caption, key=f"btn_{rank}_{file}", use_container_width=True, class_name=sq_class):
                 if st.session_state.selected_square is None:
                     # First click: Selection
                     if piece and piece.color == board.turn:
@@ -134,7 +170,7 @@ for rank in range(7, -1, -1):
 st.markdown("---")
 
 # ==========================================
-# 4. GAME LOG FEED
+# 4. GAME NOTATION LOG FEED
 # ==========================================
 if st.session_state.move_log:
     st.markdown("### 📋 Match History")
