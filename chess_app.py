@@ -6,32 +6,35 @@ import chess
 # ==========================================
 st.set_page_config(page_title="Premium Chess Arena", page_icon="♔", layout="centered")
 st.title("♔ Autonomous Chess Arena")
-st.caption("Clean Graphical Matrix — High-Resolution Asset Rendering")
+st.caption("Clean Graphical Matrix — Professional Asset Presentation")
 
-# Heavy styling to force proper block sizing and high-contrast square colors using button keys
+# Heavy styling to make text buttons look like clean, invisible grid helpers
 st.markdown("""
     <style>
-    /* Dark squares styling based on unique string pattern matching */
+    /* Dark squares text and background override */
     div.stButton > button[key^="btn_dark_"] {
         background-color: #b58863 !important;
-        color: #f0d9b5 !important;
+        color: rgba(240, 217, 181, 0.4) !important; /* Extremely faint dot color */
         border: none !important;
         border-radius: 0px !important;
-        height: 38px !important;
+        height: 32px !important;
+        font-size: 14px !important;
         font-weight: bold !important;
     }
-    /* Light squares styling based on unique string pattern matching */
+    /* Light squares text and background override */
     div.stButton > button[key^="btn_light_"] {
         background-color: #f0d9b5 !important;
-        color: #b58863 !important;
+        color: rgba(181, 136, 99, 0.4) !important; /* Extremely faint dot color */
         border: none !important;
         border-radius: 0px !important;
-        height: 38px !important;
+        height: 32px !important;
+        font-size: 14px !important;
         font-weight: bold !important;
     }
     /* Hover highlight feedback */
     div.stButton > button:hover {
         border: 2px solid #ffcc00 !important;
+        background-color: rgba(255, 204, 0, 0.3) !important;
     }
     /* Eliminate padding bloat between ranks */
     div[data-testid="stHorizontalBlock"] {
@@ -46,8 +49,8 @@ st.markdown("""
     }
     /* Box container background colors */
     .chess-cell-box {
-        padding: 5px;
-        border-radius: 4px;
+        padding: 4px;
+        border-radius: 2px;
         transition: all 0.2s;
     }
     </style>
@@ -69,7 +72,6 @@ PIECE_IMAGES = {
     'k': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
 }
 
-# 1x1 Transparent pixel fallback
 EMPTY_SQUARE = "https://upload.wikimedia.org/wikipedia/commons/c/ca/1x1.png"
 
 # Session state initialization
@@ -97,7 +99,7 @@ with st.sidebar:
             st.session_state.selected_square = None
             st.rerun()
     else:
-        st.warning("💡 Click a piece coordinate to select, then click target square.")
+        st.warning("💡 Click a piece row tile to select, then click target square.")
 
     st.markdown("---")
     if st.button("🔄 Reset Board Matrix", use_container_width=True, type="secondary"):
@@ -107,7 +109,7 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 3. GRAPHICAL 8x8 GRID WITH COMBINED STYLING
+# 3. GRAPHICAL 8x8 GRID WITH CLEAN LABELS
 # ==========================================
 st.write("### ♟️ Click Piece -> Then Click Target Square")
 
@@ -117,14 +119,14 @@ for rank in range(7, -1, -1):
         square_idx = chess.square(file, rank)
         piece = board.piece_at(square_idx)
         
-        # Track dark vs light background cells dynamically
         is_dark = (rank + file) % 2 == 0
         bg_color = "#b58863" if is_dark else "#f0d9b5"
         sq_type = "dark" if is_dark else "light"
         
-        # Setup selection highlights or pull piece URL
+        # FIXED: Replacing clunky coordinate text with a subtle dot or selection star
         is_selected = st.session_state.selected_square == square_idx
-        btn_caption = "⭐" if is_selected else f"{chess.square_name(square_idx).upper()}"
+        btn_caption = "🟢" if is_selected else "•" 
+        
         img_url = PIECE_IMAGES[piece.symbol()] if piece else EMPTY_SQUARE
         
         with grid_cols[file]:
@@ -135,7 +137,7 @@ for rank in range(7, -1, -1):
             st.image(img_url, width=44)
             st.markdown('</div>', unsafe_allow_html=True)
             
-            # Interactive action trigger block (FIXED: removed invalid class_name)
+            # Interactive action trigger block
             if grid_cols[file].button(btn_caption, key=f"btn_{sq_type}_{rank}_{file}", use_container_width=True):
                 if st.session_state.selected_square is None:
                     # First click: Selection
