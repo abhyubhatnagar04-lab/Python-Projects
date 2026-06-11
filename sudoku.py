@@ -63,6 +63,7 @@ if "current_matrix" not in st.session_state:
     st.session_state.current_matrix = [row[:] for row in STARTING_BOARD]
 
 # CSS injection to clean up inputs and visually simulate grid boxes
+# CSS injection to clean up inputs and visually simulate grid boxes
 st.markdown("""
     <style>
     div[data-testid="stHorizontalBlock"] {
@@ -74,8 +75,7 @@ st.markdown("""
         font-size: 20px !important;
     }
     </style>
-""", unsafe_rendering_allowed=True)
-
+""", unsafe_allow_html=True)  # <-- Fixed keyword argument here
 # ==========================================
 # 3. INTERACTIVE 9x9 GRID RENDERING
 # ==========================================
