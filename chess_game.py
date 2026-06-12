@@ -1,355 +1,538 @@
-import streamlit as st
-import streamlit.components.v1 as components
-
-st.set_page_config(page_title="Chess", page_icon="♟️", layout="centered")
-
-st.markdown("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap');
-html, body, [data-testid="stAppViewContainer"] { background:#1a1a2e !important; color:#e8e0d0; font-family:'Inter',sans-serif; }
-[data-testid="stHeader"] { background:transparent !important; }
-[data-testid="stToolbar"] { display:none; }
-.block-container { padding-top:1.2rem !important; max-width:900px !important; }
-h1 { font-family:'Playfair Display',serif; font-size:2.2rem; color:#f0c040; margin:0 0 .15rem; }
-.subtitle { font-size:.8rem; color:#a09880; letter-spacing:.08em; text-transform:uppercase; }
-.status-bar { display:flex; align-items:center; gap:.7rem; background:#16213e; border:1px solid #2a2a4a; border-radius:8px; padding:.5rem .9rem; margin:.35rem 0; font-size:.88rem; }
-.dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-.dot-white { background:#f0f0f0; border:1px solid #888; }
-.dot-black { background:#222222; border:1px solid #888; }
-.dot-check { background:#e04040; }
-.move-table { width:100%; border-collapse:collapse; font-size:.8rem; }
-.move-table th { color:#a09880; font-weight:600; padding:3px 6px; border-bottom:1px solid #2a2a4a; text-align:left; }
-.move-table td { padding:2px 6px; color:#c8c0b0; }
-.move-table tr:last-child td { color:#f0c040; }
-.stButton>button { background:#16213e; border:1px solid #3a3a6a; color:#e8e0d0; border-radius:6px; font-family:'Inter',sans-serif; font-size:.85rem; padding:.4rem 1rem; }
-.stButton>button:hover { border-color:#f0c040; color:#f0c040; }
-div[data-testid="stIFrame"] { border:none !important; }
-iframe { border:none !important; display:block; }
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1a2e;
+  color: #e8e0d0;
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 40px;
+}
+
+h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.2rem;
+  color: #f0c040;
+  letter-spacing: .01em;
+  margin-bottom: 2px;
+}
+.subtitle {
+  font-size: .75rem;
+  color: #a09880;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+/* ── Layout ── */
+.game-wrap {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+/* ── Board ── */
+.board-area { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.board-row  { display: flex; align-items: center; }
+.rank-label, .file-label {
+  font-size: .7rem;
+  color: #a09880;
+  width: 20px;
+  text-align: center;
+  user-select: none;
+  flex-shrink: 0;
+}
+.file-row { display: flex; margin-left: 20px; }
+.file-label { width: 68px; }
+
+.sq {
+  width: 68px; height: 68px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.6rem;
+  cursor: pointer;
+  position: relative;
+  transition: filter .1s;
+  user-select: none;
+}
+.sq:hover { filter: brightness(1.14); }
+.sq.light { background: #f0d9b5; }
+.sq.dark  { background: #b58863; }
+
+.sq.selected  { background: #f6f669 !important; }
+.sq.selected.dark { background: #d4d42a !important; }
+
+.sq.last-move.light { background: #cdd26a; }
+.sq.last-move.dark  { background: #aaa23a; }
+
+.sq.in-check { background: #c62a2a !important; }
+
+/* legal move hints */
+.sq.legal-empty::after {
+  content: '';
+  position: absolute;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.22);
+  pointer-events: none;
+}
+.sq.legal-capture::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 6px rgba(0,0,0,.25);
+  pointer-events: none;
+}
+
+.piece { pointer-events: none; line-height: 1; text-shadow: 0 1px 4px rgba(0,0,0,.35); }
+
+/* ── Side panel ── */
+.panel {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.status-bar {
+  display: flex; align-items: center; gap: 10px;
+  background: #16213e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-size: .88rem;
+}
+.dot {
+  width: 11px; height: 11px;
+  border-radius: 50%; flex-shrink: 0;
+}
+.dot.white { background: #f0f0f0; border: 1px solid #999; }
+.dot.black { background: #222; border: 1px solid #888; }
+.dot.red   { background: #e04040; }
+
+.cap-row {
+  background: #16213e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 7px 13px;
+  font-size: .82rem;
+  min-height: 38px;
+}
+.cap-label { font-size: .7rem; color: #a09880; margin-bottom: 2px; }
+.cap-pieces { font-size: 1.1rem; letter-spacing: 1px; min-height: 18px; }
+
+.history-box {
+  background: #16213e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 8px 4px 8px 10px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 340px;
+}
+.history-box table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.history-box th { color: #a09880; font-weight: 600; padding: 2px 6px; border-bottom: 1px solid #2a2a4a; text-align: left; }
+.history-box td { padding: 2px 6px; color: #c8c0b0; }
+.history-box tr:last-child td { color: #f0c040; }
+.no-moves { color: #5a5a7a; font-size: .8rem; padding: 4px 0; }
+
+.btn-new {
+  background: #16213e;
+  border: 1px solid #3a3a6a;
+  color: #e8e0d0;
+  border-radius: 7px;
+  font-family: 'Inter', sans-serif;
+  font-size: .88rem;
+  padding: 9px;
+  cursor: pointer;
+  width: 100%;
+  transition: border-color .18s, color .18s;
+}
+.btn-new:hover { border-color: #f0c040; color: #f0c040; }
+
+/* ── Promotion modal ── */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.65);
+  z-index: 100;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #16213e;
+  border: 1px solid #3a3a6a;
+  border-radius: 12px;
+  padding: 24px 28px;
+  text-align: center;
+}
+.modal h3 { font-family: 'Playfair Display', serif; color: #f0c040; margin-bottom: 16px; font-size: 1.2rem; }
+.promo-btns { display: flex; gap: 12px; }
+.promo-btn {
+  width: 64px; height: 64px;
+  font-size: 2.4rem;
+  background: #1a1a2e;
+  border: 1px solid #3a3a6a;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.promo-btn:hover { border-color: #f0c040; background: #222244; }
 </style>
-""", unsafe_allow_html=True)
+</head>
+<body>
 
-# ── Pieces ─────────────────────────────────────────────────────────────────────
-PIECES = {"wK":"♔","wQ":"♕","wR":"♖","wB":"♗","wN":"♘","wP":"♙",
-          "bK":"♚","bQ":"♛","bR":"♜","bB":"♝","bN":"♞","bP":"♟"}
-INIT_BOARD = [
-    ["bR","bN","bB","bQ","bK","bB","bN","bR"],
-    ["bP","bP","bP","bP","bP","bP","bP","bP"],
-    [None]*8,[None]*8,[None]*8,[None]*8,
-    ["wP","wP","wP","wP","wP","wP","wP","wP"],
-    ["wR","wN","wB","wQ","wK","wB","wN","wR"],
-]
+<h1>♟ Chess</h1>
+<div class="subtitle">Two-player · Classic rules</div>
 
-# ── Chess logic ────────────────────────────────────────────────────────────────
-def copy_board(b): return [row[:] for row in b]
-def color(p): return p[0] if p else None
-def in_bounds(r,c): return 0<=r<8 and 0<=c<8
+<div class="game-wrap">
+  <div class="board-area">
+    <div id="board-rows"></div>
+    <div class="file-row" id="file-labels"></div>
+  </div>
 
-def raw_moves(board,r,c,ep,cr):
-    piece=board[r][c]
-    if not piece: return []
-    col,typ=piece[0],piece[1]; opp="b" if col=="w" else "w"; moves=[]
-    def slide(dr,dc):
-        nr,nc=r+dr,c+dc
-        while in_bounds(nr,nc):
-            if board[nr][nc]:
-                if color(board[nr][nc])==opp: moves.append((nr,nc))
-                break
-            moves.append((nr,nc)); nr+=dr; nc+=dc
-    if typ=="R":
-        for d in [(1,0),(-1,0),(0,1),(0,-1)]: slide(*d)
-    elif typ=="B":
-        for d in [(1,1),(1,-1),(-1,1),(-1,-1)]: slide(*d)
-    elif typ=="Q":
-        for d in [(1,0),(-1,0),(0,1),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)]: slide(*d)
-    elif typ=="N":
-        for dr,dc in [(-2,-1),(-2,1),(-1,-2),(-1,2),(1,-2),(1,2),(2,-1),(2,1)]:
-            nr,nc=r+dr,c+dc
-            if in_bounds(nr,nc) and color(board[nr][nc])!=col: moves.append((nr,nc))
-    elif typ=="K":
-        for dr in [-1,0,1]:
-            for dc in [-1,0,1]:
-                if dr==dc==0: continue
-                nr,nc=r+dr,c+dc
-                if in_bounds(nr,nc) and color(board[nr][nc])!=col: moves.append((nr,nc))
-        row=7 if col=="w" else 0
-        if r==row and c==4:
-            if cr.get(col+"K") and not board[row][5] and not board[row][6]: moves.append((row,6))
-            if cr.get(col+"Q") and not board[row][3] and not board[row][2] and not board[row][1]: moves.append((row,2))
-    elif typ=="P":
-        fwd=-1 if col=="w" else 1; start=6 if col=="w" else 1; nr=r+fwd
-        if in_bounds(nr,c) and not board[nr][c]:
-            moves.append((nr,c))
-            if r==start and not board[r+2*fwd][c]: moves.append((r+2*fwd,c))
-        for dc in [-1,1]:
-            nc=c+dc
-            if in_bounds(nr,nc):
-                if color(board[nr][nc])==opp or ep==(nr,nc): moves.append((nr,nc))
-    return moves
+  <div class="panel">
+    <div class="status-bar" id="status-bar">
+      <div class="dot white" id="status-dot"></div>
+      <span id="status-text">White to move</span>
+    </div>
 
-def find_king(board,col):
-    for r in range(8):
-        for c in range(8):
-            if board[r][c]==col+"K": return r,c
+    <div class="cap-row">
+      <div class="cap-label">♙ captured</div>
+      <div class="cap-pieces" id="cap-by-white">—</div>
+    </div>
+    <div class="cap-row">
+      <div class="cap-label">♟ captured</div>
+      <div class="cap-pieces" id="cap-by-black">—</div>
+    </div>
 
-def is_attacked(board,r,c,by,ep,cr):
-    for rr in range(8):
-        for cc in range(8):
-            if color(board[rr][cc])==by:
-                if (r,c) in raw_moves(board,rr,cc,ep,cr): return True
-    return False
+    <div class="history-box">
+      <table>
+        <thead><tr><th>#</th><th>White</th><th>Black</th></tr></thead>
+        <tbody id="history-body"><tr><td colspan="3" class="no-moves">No moves yet</td></tr></tbody>
+      </table>
+    </div>
 
-def apply_move(board,r,c,nr,nc,cr,ep):
-    b=copy_board(board); piece=b[r][c]; col,typ=piece[0],piece[1]
-    opp="b" if col=="w" else "w"; captured=b[nr][nc]; new_ep=None
-    if typ=="P" and (nr,nc)==ep: b[r][nc]=None; captured=opp+"P"
-    if typ=="K" and abs(nc-c)==2:
-        if nc==6: b[r][5]=b[r][7]; b[r][7]=None
-        else:     b[r][3]=b[r][0]; b[r][0]=None
-    b[nr][nc]=piece; b[r][c]=None
-    if typ=="P" and abs(nr-r)==2: new_ep=((r+nr)//2,c)
-    new_cr=dict(cr)
-    if piece=="wK": new_cr["wK"]=False; new_cr["wQ"]=False
-    if piece=="bK": new_cr["bK"]=False; new_cr["bQ"]=False
-    if (r,c)==(7,0) or (nr,nc)==(7,0): new_cr["wQ"]=False
-    if (r,c)==(7,7) or (nr,nc)==(7,7): new_cr["wK"]=False
-    if (r,c)==(0,0) or (nr,nc)==(0,0): new_cr["bQ"]=False
-    if (r,c)==(0,7) or (nr,nc)==(0,7): new_cr["bK"]=False
-    return b,new_cr,new_ep,captured
+    <button class="btn-new" onclick="newGame()">↺ New game</button>
+  </div>
+</div>
 
-def legal_moves(board,r,c,ep,cr):
-    piece=board[r][c]
-    if not piece: return []
-    col=piece[0]; opp="b" if col=="w" else "w"; result=[]
-    for (nr,nc) in raw_moves(board,r,c,ep,cr):
-        b2,cr2,ep2,_=apply_move(board,r,c,nr,nc,cr,ep)
-        kr,kc=find_king(b2,col)
-        if not is_attacked(b2,kr,kc,opp,ep2,cr2):
-            if piece[1]=="K" and abs(nc-c)==2:
-                mid=(c+nc)//2
-                bm,_,_,_=apply_move(board,r,c,r,mid,cr,ep)
-                if is_attacked(board,r,c,opp,ep,cr): continue
-                if is_attacked(bm,r,mid,opp,ep,cr): continue
-            result.append((nr,nc))
-    return result
+<!-- Promotion modal -->
+<div class="modal-overlay" id="promo-modal">
+  <div class="modal">
+    <h3>Promote pawn</h3>
+    <div class="promo-btns" id="promo-btns"></div>
+  </div>
+</div>
 
-def all_legal_moves(board,col,ep,cr):
-    moves=[]
-    for r in range(8):
-        for c in range(8):
-            if color(board[r][c])==col:
-                for m in legal_moves(board,r,c,ep,cr): moves.append((r,c,m[0],m[1]))
-    return moves
-
-def is_in_check(board,col,ep,cr):
-    opp="b" if col=="w" else "w"; kr,kc=find_king(board,col)
-    return is_attacked(board,kr,kc,opp,ep,cr)
-
-def move_san(board,r,c,nr,nc,ep,promo=None):
-    piece=board[r][c]
-    if not piece: return "?"
-    typ=piece[1]; files="abcdefgh"
-    if typ=="K" and abs(nc-c)==2: return "O-O" if nc==6 else "O-O-O"
-    cap="x" if board[nr][nc] or (typ=="P" and (nr,nc)==ep) else ""
-    if typ=="P":
-        s=(files[c]+cap if cap else "")+files[nc]+str(8-nr)
-        return s+(("="+promo) if promo else "")
-    return typ+cap+files[nc]+str(8-nr)
-
-# ── Session state ──────────────────────────────────────────────────────────────
-def init_state():
-    st.session_state.update(
-        board=copy_board(INIT_BOARD), turn="w",
-        selected=None, legal=[], last_move=None,
-        castling={"wK":True,"wQ":True,"bK":True,"bQ":True},
-        en_passant=None, history=[], status="white",
-        promotion_pending=None, captured_w=[], captured_b=[],
-        clicked=None,
-    )
-
-if "board" not in st.session_state: init_state()
-S = st.session_state
-if "clicked" not in st.session_state: S.clicked = None
-
-# ── Move execution ─────────────────────────────────────────────────────────────
-def finish_move(r,c,nr,nc,promo=None):
-    san=move_san(S.board,r,c,nr,nc,S.en_passant,promo)
-    nb,ncr,nep,cap=apply_move(S.board,r,c,nr,nc,S.castling,S.en_passant)
-    if promo: nb[nr][nc]=S.turn+promo
-    if cap: (S.captured_b if color(cap)=="b" else S.captured_w).append(cap)
-    S.board=nb; S.castling=ncr; S.en_passant=nep
-    S.last_move=(r,c,nr,nc); S.history.append(san)
-    S.selected=None; S.legal=[]; S.promotion_pending=None
-    next_col="b" if S.turn=="w" else "w"; S.turn=next_col
-    moves=all_legal_moves(nb,next_col,nep,ncr); chk=is_in_check(nb,next_col,nep,ncr)
-    if not moves: S.status="checkmate" if chk else "stalemate"
-    elif chk:     S.status="check"
-    else:         S.status="white" if next_col=="w" else "black"
-
-def handle_click(r,c):
-    if S.status in ("checkmate","stalemate") or S.promotion_pending: return
-    piece=S.board[r][c]
-    if S.selected is None:
-        if piece and color(piece)==S.turn:
-            S.selected=(r,c); S.legal=legal_moves(S.board,r,c,S.en_passant,S.castling)
-    else:
-        sr,sc=S.selected
-        if (r,c) in S.legal:
-            moving=S.board[sr][sc]
-            if moving[1]=="P" and (r==0 or r==7): S.promotion_pending=(sr,sc,r,c)
-            else: finish_move(sr,sc,r,c)
-        elif piece and color(piece)==S.turn and (r,c)!=S.selected:
-            S.selected=(r,c); S.legal=legal_moves(S.board,r,c,S.en_passant,S.castling)
-        else:
-            S.selected=None; S.legal=[]
-
-# Process click from component
-if S.clicked is not None:
-    r,c = S.clicked; S.clicked=None
-    handle_click(r,c)
-    st.rerun()
-
-# ── Build board HTML ───────────────────────────────────────────────────────────
-def sq_bg(r,c):
-    lm=S.last_move; last_set={(lm[0],lm[1]),(lm[2],lm[3])} if lm else set()
-    chk_sq=find_king(S.board,S.turn) if S.status in ("check","checkmate") else None
-    if chk_sq==(r,c):     return "#c62a2a"
-    if S.selected==(r,c): return "#f6f669" if (r+c)%2==0 else "#d4d42a"
-    if (r,c) in S.legal:  return "#cdd26a" if (r+c)%2==0 else "#aaa23a"
-    if (r,c) in last_set: return "#cdd26a" if (r+c)%2==0 else "#aaa23a"
-    return "#f0d9b5" if (r+c)%2==0 else "#b58863"
-
-def build_board_html():
-    legal_set = set(S.legal)
-    files="abcdefgh"; ranks="87654321"
-    rows_html=""
-    for r in range(8):
-        cells=""
-        for c in range(8):
-            piece=S.board[r][c]
-            sym=PIECES.get(piece,"") if piece else ""
-            bg=sq_bg(r,c)
-            dot=""
-            if (r,c) in legal_set and not piece:
-                dot='<span class="dot-hint"></span>'
-            elif (r,c) in legal_set and piece:
-                dot='<span class="cap-ring"></span>'
-            cells += (
-                f'<td style="background:{bg}" data-r="{r}" data-c="{c}" class="sq">'
-                f'{dot}<span class="piece">{sym}</span></td>'
-            )
-        rows_html+=f"<tr>{''.join([f'<td class=rank-label>{ranks[r]}</td>'])}{cells}</tr>"
-    file_labels="<tr><td></td>"+"".join(f'<td class="file-label">{f}</td>' for f in files)+"</tr>"
-
-    return f"""
-<!DOCTYPE html><html><head><style>
-*{{margin:0;padding:0;box-sizing:border-box;}}
-body{{background:#1a1a2e;display:flex;justify-content:center;padding:4px 0;}}
-table{{border-collapse:collapse;user-select:none;}}
-.sq{{width:66px;height:66px;cursor:pointer;position:relative;text-align:center;vertical-align:middle;transition:filter .12s;}}
-.sq:hover{{filter:brightness(1.15);}}
-.piece{{font-size:2.5rem;line-height:1;position:relative;z-index:2;pointer-events:none;
-  text-shadow:0 1px 3px rgba(0,0,0,.4);}}
-.dot-hint{{position:absolute;width:22px;height:22px;border-radius:50%;
-  background:rgba(0,0,0,.25);top:50%;left:50%;transform:translate(-50%,-50%);z-index:1;}}
-.cap-ring{{position:absolute;inset:3px;border-radius:50%;
-  box-shadow:inset 0 0 0 5px rgba(0,0,0,.28);z-index:1;}}
-.rank-label{{width:18px;text-align:center;font-size:.72rem;color:#a09880;
-  font-family:'Inter',sans-serif;vertical-align:middle;}}
-.file-label{{text-align:center;font-size:.72rem;color:#a09880;
-  font-family:'Inter',sans-serif;height:18px;}}
-</style></head><body>
-<table>
-  <tbody>{rows_html}{file_labels}</tbody>
-</table>
 <script>
-document.querySelectorAll('.sq').forEach(td=>{{
-  td.addEventListener('click',()=>{{
-    const r=parseInt(td.dataset.r), c=parseInt(td.dataset.c);
-    window.parent.postMessage({{type:'chess_click',r,c}},'*');
-  }});
-}});
-</script>
-</body></html>"""
+// ── Pieces ────────────────────────────────────────────────────────────────────
+const GLYPHS = {wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',
+                bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
 
-# ── Listen to postMessage via a hidden component ───────────────────────────────
-# We use a small JS snippet that relays the iframe message to Streamlit
-listener_html = """
-<script>
-window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'chess_click') {
-        // encode click as a hidden input submit to change query params
-        const url = new URL(window.location.href);
-        url.searchParams.set('chess_r', e.data.r);
-        url.searchParams.set('chess_c', e.data.c);
-        window.location.href = url.toString();
+const INIT = [
+  ['bR','bN','bB','bQ','bK','bB','bN','bR'],
+  ['bP','bP','bP','bP','bP','bP','bP','bP'],
+  Array(8).fill(null),Array(8).fill(null),Array(8).fill(null),Array(8).fill(null),
+  ['wP','wP','wP','wP','wP','wP','wP','wP'],
+  ['wR','wN','wB','wQ','wK','wB','wN','wR'],
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let board, turn, selected, legalSq, lastMove, castling, ep, history,
+    status, promoPending, capW, capB;
+
+function newGame() {
+  board = INIT.map(r => [...r]);
+  turn = 'w'; selected = null; legalSq = []; lastMove = null;
+  castling = {wK:true,wQ:true,bK:true,bQ:true};
+  ep = null; history = []; status = 'white';
+  promoPending = null; capW = []; capB = [];
+  document.getElementById('promo-modal').classList.remove('open');
+  render();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const col  = p => p ? p[0] : null;
+const kind = p => p ? p[1] : null;
+const inB  = (r,c) => r>=0&&r<8&&c>=0&&c<8;
+const copyB= b => b.map(r=>[...r]);
+const key  = (r,c) => r*8+c;
+
+function findKing(b, cl) {
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++) if(b[r][c]===cl+'K') return [r,c];
+}
+
+function rawMoves(b, r, c, epT, cr) {
+  const p=b[r][c]; if(!p) return [];
+  const cl=p[0], ty=p[1], opp=cl==='w'?'b':'w', moves=[];
+  const slide=(dr,dc)=>{
+    let nr=r+dr,nc=c+dc;
+    while(inB(nr,nc)){
+      if(b[nr][nc]){if(col(b[nr][nc])===opp)moves.push([nr,nc]);break;}
+      moves.push([nr,nc]);nr+=dr;nc+=dc;
     }
-});
-</script>
-"""
-
-# Actually the cleanest approach for Streamlit: use st.query_params
-qp = st.query_params
-if "chess_r" in qp and "chess_c" in qp:
-    r,c = int(qp["chess_r"]), int(qp["chess_c"])
-    st.query_params.clear()
-    handle_click(r,c)
-    st.rerun()
-
-# ── Page layout ────────────────────────────────────────────────────────────────
-st.markdown('<h1>♟ Chess</h1><div class="subtitle">Two-player · Classic rules</div>', unsafe_allow_html=True)
-st.write("")
-
-col_board, col_info = st.columns([2.4, 1], gap="large")
-
-with col_board:
-    board_html = build_board_html()
-    # Inject query-param navigation on click
-    board_with_nav = board_html.replace(
-        "window.parent.postMessage({type:'chess_click',r,c},'*');",
-        """const url=new URL(window.parent.location.href);
-           url.searchParams.set('chess_r',r);
-           url.searchParams.set('chess_c',c);
-           window.parent.location.href=url.toString();"""
-    )
-    components.html(board_with_nav, height=580, scrolling=False)
-
-with col_info:
-    dot_map={
-        "white":("dot-white","White to move"),
-        "black":("dot-black","Black to move"),
-        "check":("dot-check",f"{'White' if S.turn=='w' else 'Black'} in check!"),
-        "checkmate":("dot-check",f"Checkmate! {'Black' if S.turn=='w' else 'White'} wins 🎉"),
-        "stalemate":("dot-white","Stalemate — Draw"),
+  };
+  if(ty==='R'){[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>slide(...d));}
+  else if(ty==='B'){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>slide(...d));}
+  else if(ty==='Q'){[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>slide(...d));}
+  else if(ty==='N'){
+    [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>{
+      const nr=r+dr,nc=c+dc;
+      if(inB(nr,nc)&&col(b[nr][nc])!==cl)moves.push([nr,nc]);
+    });
+  }
+  else if(ty==='K'){
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(!dr&&!dc)continue;
+      const nr=r+dr,nc=c+dc;
+      if(inB(nr,nc)&&col(b[nr][nc])!==cl)moves.push([nr,nc]);
     }
-    dc,msg=dot_map.get(S.status,("dot-white",""))
-    st.markdown(f'<div class="status-bar"><div class="dot {dc}"></div><span>{msg}</span></div>',unsafe_allow_html=True)
+    const row=cl==='w'?7:0;
+    if(r===row&&c===4){
+      if(cr[cl+'K']&&!b[row][5]&&!b[row][6])moves.push([row,6]);
+      if(cr[cl+'Q']&&!b[row][3]&&!b[row][2]&&!b[row][1])moves.push([row,2]);
+    }
+  }
+  else if(ty==='P'){
+    const fwd=cl==='w'?-1:1, start=cl==='w'?6:1, nr=r+fwd;
+    if(inB(nr,c)&&!b[nr][c]){
+      moves.push([nr,c]);
+      if(r===start&&!b[r+2*fwd][c])moves.push([r+2*fwd,c]);
+    }
+    for(const dc of[-1,1]){
+      const nc=c+dc;
+      if(inB(nr,nc)&&(col(b[nr][nc])===opp||(epT&&epT[0]===nr&&epT[1]===nc)))
+        moves.push([nr,nc]);
+    }
+  }
+  return moves;
+}
 
-    cb=" ".join(PIECES.get(p,"") for p in S.captured_b) or "—"
-    cw=" ".join(PIECES.get(p,"") for p in S.captured_w) or "—"
-    st.markdown(f'<div class="status-bar" style="flex-wrap:wrap;gap:3px;font-size:.82rem;"><span style="color:#a09880;margin-right:4px;">♙ took</span>{cb}</div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="status-bar" style="flex-wrap:wrap;gap:3px;font-size:.82rem;"><span style="color:#a09880;margin-right:4px;">♟ took</span>{cw}</div>',unsafe_allow_html=True)
+function isAttacked(b, r, c, by, epT, cr) {
+  for(let rr=0;rr<8;rr++) for(let cc=0;cc<8;cc++)
+    if(col(b[rr][cc])===by && rawMoves(b,rr,cc,epT,cr).some(([nr,nc])=>nr===r&&nc===c))
+      return true;
+  return false;
+}
 
-    st.write("")
-    if S.history:
-        rows=""
-        for i in range(0,len(S.history),2):
-            w=S.history[i]; b=S.history[i+1] if i+1<len(S.history) else ""
-            rows+=f"<tr><td>{i//2+1}.</td><td>{w}</td><td>{b}</td></tr>"
-        st.markdown(f'<div style="max-height:320px;overflow-y:auto;"><table class="move-table"><tr><th>#</th><th>W</th><th>B</th></tr>{rows}</table></div>',unsafe_allow_html=True)
-    else:
-        st.markdown('<span style="color:#6a6a8a;font-size:.8rem;">No moves yet</span>',unsafe_allow_html=True)
+function applyMove(b, r, c, nr, nc, cr, epT) {
+  const nb=copyB(b), p=nb[r][c], cl=p[0], ty=p[1], opp=cl==='w'?'b':'w';
+  let captured=nb[nr][nc], newEp=null;
+  if(ty==='P'&&epT&&nr===epT[0]&&nc===epT[1]){nb[r][nc]=null;captured=opp+'P';}
+  if(ty==='K'&&Math.abs(nc-c)===2){
+    if(nc===6){nb[r][5]=nb[r][7];nb[r][7]=null;}
+    else{nb[r][3]=nb[r][0];nb[r][0]=null;}
+  }
+  nb[nr][nc]=p; nb[r][c]=null;
+  if(ty==='P'&&Math.abs(nr-r)===2)newEp=[Math.floor((r+nr)/2),c];
+  const newCr={...cr};
+  if(p==='wK'){newCr.wK=false;newCr.wQ=false;}
+  if(p==='bK'){newCr.bK=false;newCr.bQ=false;}
+  if((r===7&&c===0)||(nr===7&&nc===0))newCr.wQ=false;
+  if((r===7&&c===7)||(nr===7&&nc===7))newCr.wK=false;
+  if((r===0&&c===0)||(nr===0&&nc===0))newCr.bQ=false;
+  if((r===0&&c===7)||(nr===0&&nc===7))newCr.bK=false;
+  return{nb,newCr,newEp,captured};
+}
 
-    st.write("")
-    if st.button("↺ New game", use_container_width=True):
-        init_state(); st.rerun()
+function legalMoves(b, r, c, epT, cr) {
+  const p=b[r][c]; if(!p)return[];
+  const cl=p[0], opp=cl==='w'?'b':'w', result=[];
+  for(const[nr,nc] of rawMoves(b,r,c,epT,cr)){
+    const{nb,newCr,newEp}=applyMove(b,r,c,nr,nc,cr,epT);
+    const[kr,kc]=findKing(nb,cl);
+    if(isAttacked(nb,kr,kc,opp,newEp,newCr))continue;
+    if(p[1]==='K'&&Math.abs(nc-c)===2){
+      const mid=(c+nc)/2;
+      const{nb:bm}=applyMove(b,r,c,r,mid,cr,epT);
+      if(isAttacked(b,r,c,opp,epT,cr))continue;
+      if(isAttacked(bm,r,mid,opp,epT,cr))continue;
+    }
+    result.push([nr,nc]);
+  }
+  return result;
+}
 
-# Promotion modal
-if S.promotion_pending:
-    sr,sc,nr,nc=S.promotion_pending
-    st.markdown("---")
-    st.markdown("### Promote pawn")
-    pcols=st.columns(4)
-    for i,p in enumerate(["Q","R","B","N"]):
-        with pcols[i]:
-            if st.button(PIECES[S.turn+p], key=f"promo_{p}", use_container_width=True):
-                finish_move(sr,sc,nr,nc,promo=p); st.rerun()
+function allLegalMoves(b, cl, epT, cr) {
+  const moves=[];
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++)
+    if(col(b[r][c])===cl) for(const[nr,nc] of legalMoves(b,r,c,epT,cr))
+      moves.push([r,c,nr,nc]);
+  return moves;
+}
+
+function toSAN(b, r, c, nr, nc, epT, promo) {
+  const p=b[r][c]; if(!p)return'?';
+  const ty=p[1], files='abcdefgh';
+  if(ty==='K'&&Math.abs(nc-c)===2)return nc===6?'O-O':'O-O-O';
+  const cap=(b[nr][nc]||(ty==='P'&&epT&&nr===epT[0]&&nc===epT[1]))?'x':'';
+  if(ty==='P'){
+    const s=(cap?files[c]+cap:'')+files[nc]+(8-nr);
+    return s+(promo?'='+promo:'');
+  }
+  return ty+cap+files[nc]+(8-nr);
+}
+
+// ── Move execution ─────────────────────────────────────────────────────────────
+function finishMove(r, c, nr, nc, promo) {
+  const san=toSAN(board,r,c,nr,nc,ep,promo);
+  const{nb,newCr,newEp,captured}=applyMove(board,r,c,nr,nc,castling,ep);
+  if(promo) nb[nr][nc]=turn+promo;
+  if(captured)(col(captured)==='b'?capB:capW).push(captured);
+  board=nb; castling=newCr; ep=newEp;
+  lastMove=[r,c,nr,nc]; history.push(san);
+  selected=null; legalSq=[]; promoPending=null;
+  const next=turn==='w'?'b':'w'; turn=next;
+  const moves=allLegalMoves(nb,next,newEp,newCr);
+  const chk=isAttacked(nb,...findKing(nb,next),(next==='w'?'b':'w'),newEp,newCr);
+  if(!moves.length) status=chk?'checkmate':'stalemate';
+  else if(chk)      status='check';
+  else              status=next==='w'?'white':'black';
+  document.getElementById('promo-modal').classList.remove('open');
+  render();
+}
+
+// ── Click handler ─────────────────────────────────────────────────────────────
+function onSquareClick(r, c) {
+  if(status==='checkmate'||status==='stalemate'||promoPending)return;
+  const p=board[r][c];
+  if(selected===null){
+    if(p&&col(p)===turn){selected=[r,c];legalSq=legalMoves(board,r,c,ep,castling);render();}
+  } else {
+    const[sr,sc]=selected;
+    const isLegal=legalSq.some(([lr,lc])=>lr===r&&lc===c);
+    if(isLegal){
+      const moving=board[sr][sc];
+      if(moving[1]==='P'&&(r===0||r===7)){
+        promoPending=[sr,sc,r,c];
+        showPromo();
+      } else {
+        finishMove(sr,sc,r,c,null);
+      }
+    } else if(p&&col(p)===turn&&!(r===sr&&c===sc)){
+      selected=[r,c];legalSq=legalMoves(board,r,c,ep,castling);render();
+    } else {
+      selected=null;legalSq=[];render();
+    }
+  }
+}
+
+function showPromo() {
+  const[,,,]= promoPending;
+  const btns=document.getElementById('promo-btns');
+  btns.innerHTML='';
+  for(const p of['Q','R','B','N']){
+    const btn=document.createElement('button');
+    btn.className='promo-btn'; btn.textContent=GLYPHS[turn+p];
+    btn.onclick=()=>{ finishMove(...promoPending, p); };
+    btns.appendChild(btn);
+  }
+  document.getElementById('promo-modal').classList.add('open');
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function render() {
+  renderBoard();
+  renderStatus();
+  renderCaptured();
+  renderHistory();
+}
+
+function renderBoard() {
+  const legalSet=new Set(legalSq.map(([r,c])=>key(r,c)));
+  const lastSet=lastMove?new Set(lastMove.map((_,i)=>key(lastMove[i<2?0:2],lastMove[i<2?1:3]))):new Set();
+  // fix lastSet properly
+  const lmSet=lastMove?new Set([key(lastMove[0],lastMove[1]),key(lastMove[2],lastMove[3])]):new Set();
+  const chkKing=( status==='check'||status==='checkmate') ? findKing(board,turn) : null;
+  const ranks='87654321';
+  const files='abcdefgh';
+  const container=document.getElementById('board-rows');
+  container.innerHTML='';
+  for(let r=0;r<8;r++){
+    const rowDiv=document.createElement('div');
+    rowDiv.className='board-row';
+    // rank label
+    const rl=document.createElement('div');
+    rl.className='rank-label'; rl.textContent=ranks[r];
+    rowDiv.appendChild(rl);
+    for(let c=0;c<8;c++){
+      const sq=document.createElement('div');
+      const isLight=(r+c)%2===0;
+      sq.className='sq '+(isLight?'light':'dark');
+      const k=key(r,c);
+      if(chkKing&&chkKing[0]===r&&chkKing[1]===c) sq.classList.add('in-check');
+      else if(selected&&selected[0]===r&&selected[1]===c) sq.classList.add('selected');
+      else if(lmSet.has(k)) sq.classList.add('last-move');
+      const p=board[r][c];
+      if(legalSet.has(k)){
+        sq.classList.add(p?'legal-capture':'legal-empty');
+      }
+      if(p){ const span=document.createElement('span'); span.className='piece'; span.textContent=GLYPHS[p]; sq.appendChild(span); }
+      sq.addEventListener('click',()=>onSquareClick(r,c));
+      rowDiv.appendChild(sq);
+    }
+    container.appendChild(rowDiv);
+  }
+  // file labels
+  const fileRow=document.getElementById('file-labels');
+  fileRow.innerHTML='<div style="width:20px;flex-shrink:0"></div>';
+  for(const f of files){
+    const fd=document.createElement('div'); fd.className='file-label'; fd.textContent=f;
+    fd.style.cssText='text-align:center;font-size:.7rem;color:#a09880;height:18px;display:flex;align-items:center;justify-content:center;user-select:none;';
+    fileRow.appendChild(fd);
+  }
+}
+
+function renderStatus() {
+  const dot=document.getElementById('status-dot');
+  const txt=document.getElementById('status-text');
+  dot.className='dot';
+  const map={
+    white:['white','White to move'],
+    black:['black','Black to move'],
+    check:['red',(turn==='w'?'White':'Black')+' in check!'],
+    checkmate:['red','Checkmate! '+(turn==='w'?'Black':'White')+' wins 🎉'],
+    stalemate:['white','Stalemate — Draw'],
+  };
+  const[dcls,msg]=map[status]||['white',''];
+  dot.classList.add(dcls); txt.textContent=msg;
+}
+
+function renderCaptured() {
+  const PIECES=GLYPHS;
+  document.getElementById('cap-by-white').textContent=capB.map(p=>PIECES[p]).join('')||'—';
+  document.getElementById('cap-by-black').textContent=capW.map(p=>PIECES[p]).join('')||'—';
+}
+
+function renderHistory() {
+  const tbody=document.getElementById('history-body');
+  if(!history.length){ tbody.innerHTML='<tr><td colspan="3" class="no-moves">No moves yet</td></tr>'; return; }
+  let html='';
+  for(let i=0;i<history.length;i+=2){
+    const w=history[i], b=history[i+1]||'';
+    html+=`<tr><td>${i/2+1}.</td><td>${w}</td><td>${b}</td></tr>`;
+  }
+  tbody.innerHTML=html;
+  const box=tbody.closest('.history-box');
+  box.scrollTop=box.scrollHeight;
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+newGame();
+</script>
+</body>
+</html>
