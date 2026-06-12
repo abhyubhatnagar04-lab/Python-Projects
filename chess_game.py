@@ -1,568 +1,345 @@
 import streamlit as st
 
-# ── Page config ──────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Chess",
-    page_icon="♟️",
-    layout="centered",
-    initial_sidebar_state="collapsed",
-)
+st.set_page_config(page_title="Chess", page_icon="♟️", layout="centered")
 
-# ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600&display=swap');
-
-/* ── Global ── */
 html, body, [data-testid="stAppViewContainer"] {
-    background: #1a1a2e !important;
-    color: #e8e0d0;
+    background: #1a1a2e !important; color: #e8e0d0;
     font-family: 'Inter', sans-serif;
 }
 [data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stToolbar"] { display: none; }
-.block-container { padding-top: 1.5rem !important; max-width: 700px !important; }
-
-/* ── Titles ── */
-h1 { font-family: 'Playfair Display', serif; font-size: 2rem; color: #f0c040; margin: 0 0 0.2rem; }
-.subtitle { font-size: 0.85rem; color: #a09880; letter-spacing: 0.08em; text-transform: uppercase; }
-
-/* ── Board ── */
-.board-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 1rem auto;
-}
-.board-row { display: flex; }
-.coord-col {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    width: 22px;
-    text-align: center;
-    font-size: 0.75rem;
-    color: #a09880;
-    user-select: none;
-}
-.coord-row {
-    display: flex;
-    justify-content: space-around;
-    width: calc(8 * 64px);
-    padding: 4px 0;
-    font-size: 0.75rem;
-    color: #a09880;
-    user-select: none;
-}
-.square {
-    width: 64px; height: 64px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 2.2rem;
-    cursor: pointer;
-    border: none;
-    transition: filter 0.15s;
-    user-select: none;
-    line-height: 1;
-}
-.square:hover { filter: brightness(1.18); }
-.sq-light  { background: #f0d9b5; }
-.sq-dark   { background: #b58863; }
-.sq-selected { outline: 3px inset #f0c040; outline-offset: -3px; filter: brightness(1.1); }
-.sq-legal  { position: relative; }
-.sq-legal::after {
-    content: '';
-    position: absolute;
-    width: 24px; height: 24px;
-    border-radius: 50%;
-    background: rgba(20,200,80,0.45);
-    pointer-events: none;
-}
-.sq-last   { background: #cdd16f !important; }
-.sq-last.sq-dark { background: #aaa23a !important; }
-.sq-check  { background: #e04040 !important; }
-
-/* ── Status bar ── */
+.block-container { padding-top: 1.2rem !important; max-width: 780px !important; }
+h1 { font-family:'Playfair Display',serif; font-size:2rem; color:#f0c040; margin:0 0 0.1rem; }
+.subtitle { font-size:0.8rem; color:#a09880; letter-spacing:.08em; text-transform:uppercase; }
 .status-bar {
-    display: flex; align-items: center; gap: 0.7rem;
-    background: #16213e;
-    border: 1px solid #2a2a4a;
-    border-radius: 8px;
-    padding: 0.55rem 1rem;
-    margin: 0.4rem 0;
-    font-size: 0.92rem;
+    display:flex; align-items:center; gap:.7rem;
+    background:#16213e; border:1px solid #2a2a4a;
+    border-radius:8px; padding:.5rem .9rem; margin:.3rem 0; font-size:.88rem;
 }
-.dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.dot-white { background: #f0f0f0; border: 1px solid #888; }
-.dot-black { background: #222; border: 1px solid #888; }
-.dot-check { background: #e04040; }
+.dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.dot-white { background:#f0f0f0; border:1px solid #888; }
+.dot-black { background:#222; border:1px solid #888; }
+.dot-check { background:#e04040; }
+.move-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+.move-table th { color:#a09880; font-weight:600; padding:3px 6px; border-bottom:1px solid #2a2a4a; text-align:left; }
+.move-table td { padding:2px 6px; color:#c8c0b0; }
+.move-table tr:last-child td { color:#f0c040; }
 
-/* ── Move history ── */
-.move-table {
-    width: 100%; border-collapse: collapse;
-    font-size: 0.82rem; font-family: 'Inter', monospace;
+/* Square buttons – override Streamlit defaults */
+div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+    width:64px !important; height:64px !important;
+    min-width:0 !important; padding:0 !important;
+    font-size:2rem !important; line-height:1 !important;
+    border-radius:0 !important; border:none !important;
+    cursor:pointer !important;
 }
-.move-table th {
-    color: #a09880; font-weight: 600;
-    padding: 4px 8px; border-bottom: 1px solid #2a2a4a;
-    text-align: left;
-}
-.move-table td { padding: 3px 8px; color: #c8c0b0; }
-.move-table tr:last-child td { color: #f0c040; }
-
-/* ── Buttons ── */
-.stButton > button {
-    background: #16213e;
-    border: 1px solid #3a3a6a;
-    color: #e8e0d0;
-    border-radius: 6px;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.85rem;
-    padding: 0.4rem 1rem;
-    transition: border-color 0.2s, background 0.2s;
-}
-.stButton > button:hover {
-    border-color: #f0c040;
-    background: #1e2a50;
-    color: #f0c040;
-}
-/* ── Promotion modal ── */
-.promo-box {
-    background: #16213e; border: 1px solid #3a3a6a;
-    border-radius: 10px; padding: 1rem;
-    text-align: center;
-}
-.promo-box h4 { margin: 0 0 0.6rem; color: #f0c040; }
+/* Coord labels */
+.coord-file { display:flex; justify-content:space-around; width:512px; font-size:.72rem; color:#a09880; padding:2px 0; }
+.coord-rank-col { display:flex; flex-direction:column; justify-content:space-around; height:512px; font-size:.72rem; color:#a09880; text-align:center; width:18px; padding:0; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Piece unicode maps ────────────────────────────────────────────────────────
+# ── Pieces ────────────────────────────────────────────────────────────────────
 PIECES = {
-    "wK": "♔", "wQ": "♕", "wR": "♖", "wB": "♗", "wN": "♘", "wP": "♙",
-    "bK": "♚", "bQ": "♛", "bR": "♜", "bB": "♝", "bN": "♞", "bP": "♟",
+    "wK":"♔","wQ":"♕","wR":"♖","wB":"♗","wN":"♘","wP":"♙",
+    "bK":"♚","bQ":"♛","bR":"♜","bB":"♝","bN":"♞","bP":"♟",
 }
-
 INIT_BOARD = [
     ["bR","bN","bB","bQ","bK","bB","bN","bR"],
     ["bP","bP","bP","bP","bP","bP","bP","bP"],
-    [None]*8, [None]*8, [None]*8, [None]*8,
+    [None]*8,[None]*8,[None]*8,[None]*8,
     ["wP","wP","wP","wP","wP","wP","wP","wP"],
     ["wR","wN","wB","wQ","wK","wB","wN","wR"],
 ]
 
 # ── Chess logic ───────────────────────────────────────────────────────────────
+def copy_board(b): return [row[:] for row in b]
+def color(p): return p[0] if p else None
+def kind(p):  return p[1] if p else None
+def in_bounds(r,c): return 0<=r<8 and 0<=c<8
 
-def copy_board(board):
-    return [row[:] for row in board]
-
-def color(piece):
-    return piece[0] if piece else None
-
-def kind(piece):
-    return piece[1] if piece else None
-
-def in_bounds(r, c):
-    return 0 <= r < 8 and 0 <= c < 8
-
-def raw_moves(board, r, c, en_passant_target, castling_rights):
-    """Return list of (to_r, to_c) ignoring check."""
-    piece = board[r][c]
-    if not piece:
-        return []
-    col, typ = piece[0], piece[1]
-    opp = "b" if col == "w" else "w"
-    moves = []
-
-    def slide(dr, dc):
-        nr, nc = r+dr, c+dc
-        while in_bounds(nr, nc):
-            if board[nr][nc]:
-                if color(board[nr][nc]) == opp:
-                    moves.append((nr, nc))
-                break
-            moves.append((nr, nc))
-            nr += dr; nc += dc
-
-    if typ == "R":
-        for d in [(1,0),(-1,0),(0,1),(0,-1)]: slide(*d)
-    elif typ == "B":
-        for d in [(1,1),(1,-1),(-1,1),(-1,-1)]: slide(*d)
-    elif typ == "Q":
-        for d in [(1,0),(-1,0),(0,1),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)]: slide(*d)
-    elif typ == "N":
-        for dr, dc in [(-2,-1),(-2,1),(-1,-2),(-1,2),(1,-2),(1,2),(2,-1),(2,1)]:
-            nr, nc = r+dr, c+dc
-            if in_bounds(nr, nc) and color(board[nr][nc]) != col:
-                moves.append((nr, nc))
-    elif typ == "K":
-        for dr in [-1,0,1]:
-            for dc in [-1,0,1]:
-                if dr == dc == 0: continue
-                nr, nc = r+dr, c+dc
-                if in_bounds(nr, nc) and color(board[nr][nc]) != col:
-                    moves.append((nr, nc))
-        # Castling
-        row = 7 if col == "w" else 0
-        if r == row and c == 4:
-            # Kingside
-            if castling_rights.get(col+"K") and not board[row][5] and not board[row][6]:
-                moves.append((row, 6))
-            # Queenside
-            if castling_rights.get(col+"Q") and not board[row][3] and not board[row][2] and not board[row][1]:
-                moves.append((row, 2))
-    elif typ == "P":
-        fwd = -1 if col == "w" else 1
-        start_row = 6 if col == "w" else 1
-        # Forward
-        nr = r + fwd
-        if in_bounds(nr, c) and not board[nr][c]:
-            moves.append((nr, c))
-            # Double push
-            if r == start_row and not board[r+2*fwd][c]:
-                moves.append((r+2*fwd, c))
-        # Captures
-        for dc in [-1, 1]:
-            nc = c + dc
-            if in_bounds(nr, c) and in_bounds(nr, nc):
-                if color(board[nr][nc]) == opp:
-                    moves.append((nr, nc))
-                elif en_passant_target == (nr, nc):
-                    moves.append((nr, nc))
-    return moves
-
-def find_king(board, col):
-    for r in range(8):
-        for c in range(8):
-            if board[r][c] == col+"K":
-                return r, c
-    return None
-
-def is_attacked(board, r, c, by_color, en_passant_target, castling_rights):
-    """Is square (r,c) attacked by any piece of by_color?"""
-    for rr in range(8):
-        for cc in range(8):
-            if color(board[rr][cc]) == by_color:
-                if (r, c) in raw_moves(board, rr, cc, en_passant_target, castling_rights):
-                    return True
-    return False
-
-def apply_move(board, r, c, nr, nc, castling_rights, en_passant_target):
-    """Apply move, return (new_board, new_castling, new_ep_target, captured)."""
-    b = copy_board(board)
-    piece = b[r][c]
-    col, typ = piece[0], piece[1]
-    opp = "b" if col == "w" else "w"
-    captured = b[nr][nc]
-    new_ep = None
-
-    # En passant capture
-    if typ == "P" and (nr, nc) == en_passant_target:
-        ep_r = r  # the captured pawn is on the same row as moving pawn
-        b[ep_r][nc] = None
-        captured = col == "w" and "bP" or "wP"
-
-    # Castling move
-    if typ == "K" and abs(nc - c) == 2:
-        row = r
-        if nc == 6:  # kingside
-            b[row][5] = b[row][7]; b[row][7] = None
-        else:        # queenside
-            b[row][3] = b[row][0]; b[row][0] = None
-
-    b[nr][nc] = piece
-    b[r][c] = None
-
-    # Double pawn push → en passant target
-    if typ == "P" and abs(nr - r) == 2:
-        new_ep = ((r + nr) // 2, c)
-
-    # Update castling rights
-    new_cr = dict(castling_rights)
-    if piece == "wK": new_cr["wK"] = False; new_cr["wQ"] = False
-    if piece == "bK": new_cr["bK"] = False; new_cr["bQ"] = False
-    if (r, c) == (7, 0) or (nr, nc) == (7, 0): new_cr["wQ"] = False
-    if (r, c) == (7, 7) or (nr, nc) == (7, 7): new_cr["wK"] = False
-    if (r, c) == (0, 0) or (nr, nc) == (0, 0): new_cr["bQ"] = False
-    if (r, c) == (0, 7) or (nr, nc) == (0, 7): new_cr["bK"] = False
-
-    return b, new_cr, new_ep, captured
-
-def legal_moves(board, r, c, en_passant_target, castling_rights):
-    """Return legal moves for piece at (r,c)."""
+def raw_moves(board, r, c, ep, cr):
     piece = board[r][c]
     if not piece: return []
-    col = piece[0]
-    opp = "b" if col == "w" else "w"
-    result = []
-    for (nr, nc) in raw_moves(board, r, c, en_passant_target, castling_rights):
-        b2, cr2, ep2, _ = apply_move(board, r, c, nr, nc, castling_rights, en_passant_target)
-        kr, kc = find_king(b2, col)
-        if not is_attacked(b2, kr, kc, opp, ep2, cr2):
-            # Castling: king must not pass through check
-            if piece[1] == "K" and abs(nc - c) == 2:
-                mid_c = (c + nc) // 2
-                b_mid, _, _, _ = apply_move(board, r, c, r, mid_c, castling_rights, en_passant_target)
-                if is_attacked(board, r, c, opp, en_passant_target, castling_rights): continue
-                if is_attacked(b_mid, r, mid_c, opp, en_passant_target, castling_rights): continue
-            result.append((nr, nc))
-    return result
-
-def all_legal_moves(board, col, en_passant_target, castling_rights):
-    moves = []
-    for r in range(8):
-        for c in range(8):
-            if color(board[r][c]) == col:
-                for m in legal_moves(board, r, c, en_passant_target, castling_rights):
-                    moves.append((r, c, m[0], m[1]))
+    col,typ = piece[0],piece[1]
+    opp = "b" if col=="w" else "w"
+    moves=[]
+    def slide(dr,dc):
+        nr,nc=r+dr,c+dc
+        while in_bounds(nr,nc):
+            if board[nr][nc]:
+                if color(board[nr][nc])==opp: moves.append((nr,nc))
+                break
+            moves.append((nr,nc)); nr+=dr; nc+=dc
+    if typ=="R":
+        for d in [(1,0),(-1,0),(0,1),(0,-1)]: slide(*d)
+    elif typ=="B":
+        for d in [(1,1),(1,-1),(-1,1),(-1,-1)]: slide(*d)
+    elif typ=="Q":
+        for d in [(1,0),(-1,0),(0,1),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)]: slide(*d)
+    elif typ=="N":
+        for dr,dc in [(-2,-1),(-2,1),(-1,-2),(-1,2),(1,-2),(1,2),(2,-1),(2,1)]:
+            nr,nc=r+dr,c+dc
+            if in_bounds(nr,nc) and color(board[nr][nc])!=col: moves.append((nr,nc))
+    elif typ=="K":
+        for dr in [-1,0,1]:
+            for dc in [-1,0,1]:
+                if dr==dc==0: continue
+                nr,nc=r+dr,c+dc
+                if in_bounds(nr,nc) and color(board[nr][nc])!=col: moves.append((nr,nc))
+        row=7 if col=="w" else 0
+        if r==row and c==4:
+            if cr.get(col+"K") and not board[row][5] and not board[row][6]: moves.append((row,6))
+            if cr.get(col+"Q") and not board[row][3] and not board[row][2] and not board[row][1]: moves.append((row,2))
+    elif typ=="P":
+        fwd=-1 if col=="w" else 1
+        start=6 if col=="w" else 1
+        nr=r+fwd
+        if in_bounds(nr,c) and not board[nr][c]:
+            moves.append((nr,c))
+            if r==start and not board[r+2*fwd][c]: moves.append((r+2*fwd,c))
+        for dc in [-1,1]:
+            nc=c+dc
+            if in_bounds(nr,nc):
+                if color(board[nr][nc])==opp or ep==(nr,nc): moves.append((nr,nc))
     return moves
 
-def is_in_check(board, col, en_passant_target, castling_rights):
-    opp = "b" if col == "w" else "w"
-    kr, kc = find_king(board, col)
-    return is_attacked(board, kr, kc, opp, en_passant_target, castling_rights)
+def find_king(board,col):
+    for r in range(8):
+        for c in range(8):
+            if board[r][c]==col+"K": return r,c
 
-def move_to_san(board, r, c, nr, nc, en_passant_target, promo=None):
-    """Minimal SAN-ish notation for the move history."""
-    piece = board[r][c]
+def is_attacked(board,r,c,by,ep,cr):
+    for rr in range(8):
+        for cc in range(8):
+            if color(board[rr][cc])==by:
+                if (r,c) in raw_moves(board,rr,cc,ep,cr): return True
+    return False
+
+def apply_move(board,r,c,nr,nc,cr,ep):
+    b=copy_board(board); piece=b[r][c]
+    col,typ=piece[0],piece[1]; opp="b" if col=="w" else "w"
+    captured=b[nr][nc]; new_ep=None
+    if typ=="P" and (nr,nc)==ep:
+        b[r][nc]=None; captured=opp+"P"
+    if typ=="K" and abs(nc-c)==2:
+        row=r
+        if nc==6: b[row][5]=b[row][7]; b[row][7]=None
+        else:     b[row][3]=b[row][0]; b[row][0]=None
+    b[nr][nc]=piece; b[r][c]=None
+    if typ=="P" and abs(nr-r)==2: new_ep=((r+nr)//2,c)
+    new_cr=dict(cr)
+    if piece=="wK": new_cr["wK"]=False; new_cr["wQ"]=False
+    if piece=="bK": new_cr["bK"]=False; new_cr["bQ"]=False
+    if (r,c)==(7,0) or (nr,nc)==(7,0): new_cr["wQ"]=False
+    if (r,c)==(7,7) or (nr,nc)==(7,7): new_cr["wK"]=False
+    if (r,c)==(0,0) or (nr,nc)==(0,0): new_cr["bQ"]=False
+    if (r,c)==(0,7) or (nr,nc)==(0,7): new_cr["bK"]=False
+    return b,new_cr,new_ep,captured
+
+def legal_moves(board,r,c,ep,cr):
+    piece=board[r][c]
+    if not piece: return []
+    col=piece[0]; opp="b" if col=="w" else "w"; result=[]
+    for (nr,nc) in raw_moves(board,r,c,ep,cr):
+        b2,cr2,ep2,_=apply_move(board,r,c,nr,nc,cr,ep)
+        kr,kc=find_king(b2,col)
+        if not is_attacked(b2,kr,kc,opp,ep2,cr2):
+            if piece[1]=="K" and abs(nc-c)==2:
+                mid=(c+nc)//2
+                bm,_,_,_=apply_move(board,r,c,r,mid,cr,ep)
+                if is_attacked(board,r,c,opp,ep,cr): continue
+                if is_attacked(bm,r,mid,opp,ep,cr): continue
+            result.append((nr,nc))
+    return result
+
+def all_legal_moves(board,col,ep,cr):
+    moves=[]
+    for r in range(8):
+        for c in range(8):
+            if color(board[r][c])==col:
+                for m in legal_moves(board,r,c,ep,cr): moves.append((r,c,m[0],m[1]))
+    return moves
+
+def is_in_check(board,col,ep,cr):
+    opp="b" if col=="w" else "w"
+    kr,kc=find_king(board,col)
+    return is_attacked(board,kr,kc,opp,ep,cr)
+
+def move_san(board,r,c,nr,nc,ep,promo=None):
+    piece=board[r][c]
     if not piece: return "?"
-    typ = piece[1]
-    files = "abcdefgh"
-    if typ == "K" and abs(nc - c) == 2:
-        return "O-O" if nc == 6 else "O-O-O"
-    cap = "x" if board[nr][nc] or (typ == "P" and (nr, nc) == en_passant_target) else ""
-    if typ == "P":
-        from_str = files[c] + cap if cap else ""
-        to_str = files[nc] + str(8 - nr)
-        s = from_str + to_str
-        if promo: s += "=" + promo
+    typ=piece[1]; files="abcdefgh"
+    if typ=="K" and abs(nc-c)==2: return "O-O" if nc==6 else "O-O-O"
+    cap="x" if board[nr][nc] or (typ=="P" and (nr,nc)==ep) else ""
+    if typ=="P":
+        s=(files[c]+cap if cap else "")+files[nc]+str(8-nr)
+        if promo: s+="="+promo
         return s
-    return typ + cap + files[nc] + str(8 - nr)
+    return typ+cap+files[nc]+str(8-nr)
 
 # ── Session state ─────────────────────────────────────────────────────────────
-
 def init_state():
-    st.session_state.board = copy_board(INIT_BOARD)
-    st.session_state.turn = "w"
-    st.session_state.selected = None
-    st.session_state.legal = []
-    st.session_state.last_move = None
-    st.session_state.castling = {"wK": True, "wQ": True, "bK": True, "bQ": True}
-    st.session_state.en_passant = None
-    st.session_state.history = []          # list of SAN strings
-    st.session_state.status = "white"      # "white","black","check","checkmate","stalemate","draw"
-    st.session_state.promotion_pending = None  # (r,c,nr,nc) awaiting promo choice
-    st.session_state.captured_w = []       # pieces white captured
-    st.session_state.captured_b = []
+    st.session_state.update(
+        board=copy_board(INIT_BOARD), turn="w",
+        selected=None, legal=[], last_move=None,
+        castling={"wK":True,"wQ":True,"bK":True,"bQ":True},
+        en_passant=None, history=[], status="white",
+        promotion_pending=None, captured_w=[], captured_b=[],
+    )
 
 if "board" not in st.session_state:
     init_state()
-
 S = st.session_state
 
-# ── Handle promotion ──────────────────────────────────────────────────────────
+# ── Move execution ────────────────────────────────────────────────────────────
+def finish_move(r,c,nr,nc,promo=None):
+    san=move_san(S.board,r,c,nr,nc,S.en_passant,promo)
+    nb,ncr,nep,cap=apply_move(S.board,r,c,nr,nc,S.castling,S.en_passant)
+    if promo: nb[nr][nc]=S.turn+promo
+    if cap:
+        (S.captured_b if color(cap)=="b" else S.captured_w).append(cap)
+    S.board=nb; S.castling=ncr; S.en_passant=nep
+    S.last_move=(r,c,nr,nc); S.history.append(san)
+    S.selected=None; S.legal=[]; S.promotion_pending=None
+    next_col="b" if S.turn=="w" else "w"; S.turn=next_col
+    moves=all_legal_moves(nb,next_col,nep,ncr)
+    chk=is_in_check(nb,next_col,nep,ncr)
+    if not moves: S.status="checkmate" if chk else "stalemate"
+    elif chk:     S.status="check"
+    else:         S.status="white" if next_col=="w" else "black"
 
-def finish_move(r, c, nr, nc, promo=None):
-    board, castling, ep = S.board, S.castling, S.en_passant
-    san = move_to_san(board, r, c, nr, nc, ep, promo)
-    new_board, new_cr, new_ep, captured = apply_move(board, r, c, nr, nc, castling, ep)
-
-    # Apply promotion
-    if promo:
-        new_board[nr][nc] = S.turn + promo
-
-    if captured:
-        if color(captured) == "w":
-            S.captured_w.append(captured)
-        else:
-            S.captured_b.append(captured)
-
-    S.board = new_board
-    S.castling = new_cr
-    S.en_passant = new_ep
-    S.last_move = (r, c, nr, nc)
-    S.history.append(san)
-    S.selected = None
-    S.legal = []
-    S.promotion_pending = None
-
-    # Switch turn
-    next_col = "b" if S.turn == "w" else "w"
-    S.turn = next_col
-
-    # Determine status
-    moves = all_legal_moves(new_board, next_col, new_ep, new_cr)
-    in_check = is_in_check(new_board, next_col, new_ep, new_cr)
-    if not moves:
-        S.status = "checkmate" if in_check else "stalemate"
-    elif in_check:
-        S.status = "check"
-    else:
-        S.status = "white" if next_col == "w" else "black"
-
-# ── Handle square click ───────────────────────────────────────────────────────
-
-def on_square_click(r, c):
-    if S.status in ("checkmate", "stalemate"):
-        return
-    if S.promotion_pending:
-        return
-
-    board = S.board
-    piece = board[r][c]
-
+def on_click(r,c):
+    if S.status in ("checkmate","stalemate") or S.promotion_pending: return
+    piece=S.board[r][c]
     if S.selected is None:
-        if piece and color(piece) == S.turn:
-            S.selected = (r, c)
-            S.legal = legal_moves(board, r, c, S.en_passant, S.castling)
+        if piece and color(piece)==S.turn:
+            S.selected=(r,c); S.legal=legal_moves(S.board,r,c,S.en_passant,S.castling)
     else:
-        sr, sc = S.selected
-        if (r, c) in S.legal:
-            # Check promotion
-            moving = board[sr][sc]
-            if moving and moving[1] == "P" and (r == 0 or r == 7):
-                S.promotion_pending = (sr, sc, r, c)
+        sr,sc=S.selected
+        if (r,c) in S.legal:
+            moving=S.board[sr][sc]
+            if moving[1]=="P" and (r==0 or r==7):
+                S.promotion_pending=(sr,sc,r,c)
             else:
-                finish_move(sr, sc, r, c)
-        elif piece and color(piece) == S.turn and (r, c) != S.selected:
-            S.selected = (r, c)
-            S.legal = legal_moves(board, r, c, S.en_passant, S.castling)
+                finish_move(sr,sc,r,c)
+        elif piece and color(piece)==S.turn and (r,c)!=S.selected:
+            S.selected=(r,c); S.legal=legal_moves(S.board,r,c,S.en_passant,S.castling)
         else:
-            S.selected = None
-            S.legal = []
+            S.selected=None; S.legal=[]
 
-# ── URL param buttons ─────────────────────────────────────────────────────────
+# ── Square colours ────────────────────────────────────────────────────────────
+# We inject per-button background via CSS nth-child trick – but since Streamlit
+# wraps each button separately we use a custom HTML overlay + st.button grid.
 
-for key in st.query_params:
-    if key.startswith("sq_"):
-        _, r, c = key.split("_")
-        on_square_click(int(r), int(c))
-        st.query_params.clear()
-        st.rerun()
+# We'll render the board as an 8x8 grid of st.button calls, and colour them
+# by injecting a <style> block that targets each button by its unique key.
 
-# ── Layout ────────────────────────────────────────────────────────────────────
+def sq_bg(r, c):
+    lm = S.last_move
+    last_set = {(lm[0],lm[1]),(lm[2],lm[3])} if lm else set()
+    chk_sq = find_king(S.board, S.turn) if S.status in ("check","checkmate") else None
 
+    if chk_sq==(r,c):       return "#e04040"
+    if S.selected==(r,c):   return "#f6f669" if (r+c)%2==0 else "#baca2b"
+    if (r,c) in S.legal:    return "#cdd26a" if (r+c)%2==0 else "#aaa23a"
+    if (r,c) in last_set:   return "#cdd26a" if (r+c)%2==0 else "#aaa23a"
+    return "#f0d9b5" if (r+c)%2==0 else "#b58863"
+
+# ── Render ────────────────────────────────────────────────────────────────────
 st.markdown('<h1>♟ Chess</h1><div class="subtitle">Two-player · Classic rules</div>', unsafe_allow_html=True)
-st.markdown("<br>", unsafe_allow_html=True)
+st.write("")
 
-col_board, col_info = st.columns([3, 1.4], gap="medium")
+# Build CSS for all 64 square buttons dynamically
+css_parts = ["<style>"]
+for r in range(8):
+    for c in range(8):
+        bg = sq_bg(r,c)
+        key = f"sq_{r}_{c}"
+        css_parts.append(
+            f'button[kind="secondary"][data-testid="baseButton-secondary"]'
+            f'[aria-label="{key}"] {{ background:{bg} !important; color: {"#000" if bg in ("#f0d9b5","#cdd26a") else "#000"} !important; }}'
+        )
+css_parts.append("</style>")
+st.markdown("\n".join(css_parts), unsafe_allow_html=True)
 
-with col_board:
-    board = S.board
-    legal_set = set(S.legal)
-    lm = S.last_move  # (r,c,nr,nc) or None
-    last_set = {(lm[0], lm[1]), (lm[2], lm[3])} if lm else set()
+left, mid, right = st.columns([0.18, 3.3, 1.5], gap="small")
 
-    # Check king square
-    check_sq = None
-    if S.status in ("check", "checkmate"):
-        check_sq = find_king(board, S.turn)
-
-    # Build board HTML
-    files = "abcdefgh"
-    ranks = "87654321"
-
-    html = '<div class="board-wrapper">'
-    # Rank coords left + board rows
-    html += '<div style="display:flex; align-items:center;">'
-    html += '<div class="coord-col">'
-    for rk in ranks:
-        html += f'<span>{rk}</span>'
-    html += '</div>'
-    html += '<div>'
+with mid:
+    files = list("abcdefgh")
+    ranks = list("87654321")
 
     for r in range(8):
-        html += '<div class="board-row">'
+        cols = st.columns(8, gap="small")
         for c in range(8):
-            light = (r + c) % 2 == 0
-            classes = ["square", "sq-light" if light else "sq-dark"]
-            if S.selected == (r, c):
-                classes.append("sq-selected")
-            elif (r, c) in legal_set:
-                classes.append("sq-legal")
-            if (r, c) in last_set and S.selected != (r, c):
-                classes.append("sq-last")
-            if check_sq == (r, c):
-                classes.append("sq-check")
+            piece = S.board[r][c]
+            label = PIECES.get(piece,"·") if piece else "·"
+            bg = sq_bg(r,c)
+            key = f"sq_{r}_{c}"
+            # Inject inline style via markdown trick before each button
+            with cols[c]:
+                st.markdown(
+                    f'<style>div[data-testid="stButton"]:has(button[aria-label="{key}"])>button'
+                    f'{{background:{bg}!important;border:none!important;'
+                    f'width:60px!important;height:60px!important;'
+                    f'font-size:2rem!important;padding:0!important;'
+                    f'border-radius:0!important;color:#111!important;'
+                    f'box-shadow:{"inset 0 0 0 3px #20c020" if (r,c) in S.legal else "none"}!important;}}</style>',
+                    unsafe_allow_html=True,
+                )
+                st.button(label, key=key, on_click=on_click, args=(r,c),
+                          help=f"{files[c]}{ranks[r]}")
 
-            piece = board[r][c]
-            sym = PIECES.get(piece, "") if piece else ""
-            cls = " ".join(classes)
-            # Use a form button approach via query params
-            html += (
-                f'<button class="{cls}" '
-                f'onclick="window.location.search=\'?sq_{r}_{c}=1\'" '
-                f'title="{files[c]}{ranks[r]}">{sym}</button>'
-            )
-        html += '</div>'
+    # File labels
+    fcols = st.columns(8, gap="small")
+    for c,f in enumerate(files):
+        with fcols[c]:
+            st.markdown(f'<div style="text-align:center;font-size:.7rem;color:#a09880;width:60px;">{f}</div>', unsafe_allow_html=True)
 
-    html += '</div></div>'
-    # File coords bottom
-    html += '<div class="coord-row">'
-    for f in files:
-        html += f'<span>{f}</span>'
-    html += '</div>'
-    html += '</div>'
-
-    st.markdown(html, unsafe_allow_html=True)
-
-    # Promotion modal
-    if S.promotion_pending:
-        sr, sc, nr, nc = S.promotion_pending
-        promo_col = S.turn
-        pieces_to_choose = ["Q", "R", "B", "N"]
-        st.markdown('<div class="promo-box"><h4>Promote pawn to:</h4></div>', unsafe_allow_html=True)
-        pcols = st.columns(4)
-        for i, p in enumerate(pieces_to_choose):
-            with pcols[i]:
-                sym = PIECES[promo_col + p]
-                if st.button(sym, key=f"promo_{p}", use_container_width=True):
-                    finish_move(sr, sc, nr, nc, promo=p)
-                    st.rerun()
-
-with col_info:
+with right:
     # Status
-    status_msgs = {
-        "white":      ("dot-white", "White to move"),
-        "black":      ("dot-black", "Black to move"),
-        "check":      ("dot-check", f"{'White' if S.turn=='w' else 'Black'} in check!"),
-        "checkmate":  ("dot-check", f"Checkmate! {'Black' if S.turn=='w' else 'White'} wins 🎉"),
-        "stalemate":  ("dot-white", "Stalemate — Draw"),
-        "draw":       ("dot-white", "Draw"),
+    dot_map = {
+        "white":("dot-white","White to move"),
+        "black":("dot-black","Black to move"),
+        "check":("dot-check",f"{'White' if S.turn=='w' else 'Black'} in check!"),
+        "checkmate":("dot-check",f"Checkmate! {'Black' if S.turn=='w' else 'White'} wins 🎉"),
+        "stalemate":("dot-white","Stalemate — Draw"),
     }
-    dot_cls, msg = status_msgs.get(S.status, ("dot-white", ""))
-    st.markdown(
-        f'<div class="status-bar"><div class="dot {dot_cls}"></div><span>{msg}</span></div>',
-        unsafe_allow_html=True,
-    )
+    dc,msg = dot_map.get(S.status,("dot-white",""))
+    st.markdown(f'<div class="status-bar"><div class="dot {dc}"></div><span>{msg}</span></div>', unsafe_allow_html=True)
 
-    # Captured pieces
-    cap_b_str = " ".join(PIECES.get(p, "") for p in S.captured_b) or "—"
-    cap_w_str = " ".join(PIECES.get(p, "") for p in S.captured_w) or "—"
-    st.markdown(
-        f'<div class="status-bar" style="flex-wrap:wrap;gap:4px;">'
-        f'<span style="color:#a09880;font-size:0.78rem;">♙ took:</span> {cap_b_str}</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f'<div class="status-bar" style="flex-wrap:wrap;gap:4px;">'
-        f'<span style="color:#a09880;font-size:0.78rem;">♟ took:</span> {cap_w_str}</div>',
-        unsafe_allow_html=True,
-    )
+    # Captured
+    cb = " ".join(PIECES.get(p,"") for p in S.captured_b) or "—"
+    cw = " ".join(PIECES.get(p,"") for p in S.captured_w) or "—"
+    st.markdown(f'<div class="status-bar" style="flex-wrap:wrap;font-size:.8rem;"><span style="color:#a09880">♙ took:</span> {cb}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="status-bar" style="flex-wrap:wrap;font-size:.8rem;"><span style="color:#a09880">♟ took:</span> {cw}</div>', unsafe_allow_html=True)
 
-    # Move history
-    st.markdown("<br>", unsafe_allow_html=True)
+    # History
+    st.write("")
     if S.history:
-        hist_html = '<table class="move-table"><tr><th>#</th><th>White</th><th>Black</th></tr>'
-        for i in range(0, len(S.history), 2):
-            move_num = i // 2 + 1
-            w_move = S.history[i]
-            b_move = S.history[i+1] if i+1 < len(S.history) else ""
-            hist_html += f'<tr><td>{move_num}.</td><td>{w_move}</td><td>{b_move}</td></tr>'
-        hist_html += '</table>'
-        st.markdown(hist_html, unsafe_allow_html=True)
+        rows=""
+        for i in range(0,len(S.history),2):
+            w=S.history[i]; b=S.history[i+1] if i+1<len(S.history) else ""
+            rows+=f"<tr><td>{i//2+1}.</td><td>{w}</td><td>{b}</td></tr>"
+        st.markdown(f'<table class="move-table"><tr><th>#</th><th>W</th><th>B</th></tr>{rows}</table>', unsafe_allow_html=True)
     else:
-        st.markdown('<span style="color:#6a6a8a;font-size:0.82rem;">No moves yet</span>', unsafe_allow_html=True)
+        st.markdown('<span style="color:#6a6a8a;font-size:.8rem;">No moves yet</span>', unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.write("")
     if st.button("↺ New game", use_container_width=True):
-        init_state()
-        st.rerun()
+        init_state(); st.rerun()
+
+# Promotion modal
+if S.promotion_pending:
+    sr,sc,nr,nc=S.promotion_pending
+    st.markdown("---")
+    st.markdown("**Promote pawn to:**")
+    pcols=st.columns(4)
+    for i,p in enumerate(["Q","R","B","N"]):
+        with pcols[i]:
+            sym=PIECES[S.turn+p]
+            if st.button(sym,key=f"promo_{p}",use_container_width=True):
+                finish_move(sr,sc,nr,nc,promo=p); st.rerun()
