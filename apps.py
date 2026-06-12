@@ -6,18 +6,19 @@ from duckduckgo_search import DDGS
 from datetime import date
 
 # ==========================================
-# 1. MODEL POOL — ordered by daily quota
+# 1. MODEL POOL — verified free-tier IDs
+#    (Gemini API / AI Studio, June 2026)
+#    Ordered: highest RPD first
 # ==========================================
 MODEL_POOL = [
-    {"id": "gemini-2.5-flash-lite-preview-06-17", "label": "Gemini 2.5 Flash Lite", "rpd": 500,  "rpm": 10},
-    {"id": "gemma-3-27b-it",                      "label": "Gemma 3 27B",            "rpd": 1500, "rpm": 30},
-    {"id": "gemma-3n-e4b-it",                     "label": "Gemma 3n E4B",           "rpd": 1500, "rpm": 30},
-    {"id": "gemini-2.0-flash-lite",               "label": "Gemini 2.0 Flash Lite",  "rpd": 200,  "rpm": 30},
-    {"id": "gemini-2.0-flash",                    "label": "Gemini 2.0 Flash",       "rpd": 200,  "rpm": 15},
-    {"id": "gemini-2.5-flash",                    "label": "Gemini 2.5 Flash",       "rpd": 20,   "rpm": 5},
+    {"id": "gemini-2.5-flash-lite", "label": "Gemini 2.5 Flash Lite", "rpd": 500, "rpm": 10},
+    {"id": "gemini-2.5-flash",      "label": "Gemini 2.5 Flash",      "rpd": 20,  "rpm": 5},
 ]
+# NOTE: gemini-2.0-flash and gemini-2.0-flash-lite were shut down June 1 2026.
+# Gemma models are Vertex AI only and not available on the free Gemini API key.
+# Add more models here if Google opens new free-tier ones.
 
-TOTAL_DAILY = sum(m["rpd"] for m in MODEL_POOL)  # ~3920 requests/day
+TOTAL_DAILY = sum(m["rpd"] for m in MODEL_POOL)
 
 # ==========================================
 # 2. UI CONFIGURATION
@@ -32,7 +33,6 @@ TODAY = str(date.today())
 defaults = {
     "all_chats": {"chat_1": {"title": "New Chat", "messages": []}},
     "current_chat_id": "chat_1",
-    # Per-model usage tracking (resets daily)
     "usage_date": TODAY,
     "usage_today": {m["id"]: 0 for m in MODEL_POOL},
     "model_idx": 0,
@@ -41,7 +41,7 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# Reset usage counters if it's a new day
+# Reset usage counters on new day (resets at midnight Pacific per Google docs)
 if st.session_state.usage_date != TODAY:
     st.session_state.usage_date = TODAY
     st.session_state.usage_today = {m["id"]: 0 for m in MODEL_POOL}
@@ -54,7 +54,7 @@ active_messages = st.session_state.all_chats[current_chat_id]["messages"]
 # 4. MODEL ROTATION LOGIC
 # ==========================================
 def get_available_model():
-    """Return the next model that still has daily quota, or None if all exhausted."""
+    """Return the next model that still has daily quota, cycling through the pool."""
     for i in range(len(MODEL_POOL)):
         idx = (st.session_state.model_idx + i) % len(MODEL_POOL)
         model = MODEL_POOL[idx]
@@ -65,11 +65,10 @@ def get_available_model():
     return None
 
 def mark_model_exhausted(model_id):
-    """Force-exhaust a model when a quota error is received."""
+    """Force-exhaust a model when API returns a quota error."""
     for m in MODEL_POOL:
         if m["id"] == model_id:
             st.session_state.usage_today[model_id] = m["rpd"]
-    # Advance to next model
     st.session_state.model_idx = (st.session_state.model_idx + 1) % len(MODEL_POOL)
 
 def bump_usage(model_id):
@@ -101,7 +100,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # API Key
+    # API Key — read from Streamlit secrets first, then allow manual entry
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
         api_key = st.text_input("Gemini API Key (free):", type="password")
@@ -115,13 +114,20 @@ with st.sidebar:
     # Daily quota dashboard
     st.subheader("📊 Daily Quota")
     used = total_used()
-    st.progress(min(used / TOTAL_DAILY, 1.0), text=f"{used} / {TOTAL_DAILY} requests used")
+    st.progress(min(used / max(TOTAL_DAILY, 1), 1.0), text=f"{used} / {TOTAL_DAILY} requests used")
 
     for m in MODEL_POOL:
         u = st.session_state.usage_today.get(m["id"], 0)
         pct = u / m["rpd"]
         icon = "🔴" if pct >= 1 else "🟡" if pct >= 0.7 else "🟢"
         st.caption(f"{icon} {m['label']}: {u}/{m['rpd']}")
+
+    st.markdown("---")
+    st.caption(
+        "Quotas reset midnight Pacific time. "
+        "Gemini 2.5 Flash Lite has the highest free limit (500/day). "
+        "The app auto-switches models when one is exhausted."
+    )
 
 # ==========================================
 # 6. TOOLS
@@ -166,16 +172,50 @@ for msg in active_messages:
         st.write(msg["content"])
 
 # ==========================================
-# 8. INPUT & AGENT LOOP
+# 8. INPUT & AGENT LOOP WITH MODEL FALLBACK
 # ==========================================
+def try_generate(client, history, config, skip_model_id=None):
+    """Attempt generation, cycling through models on quota errors."""
+    for attempt in range(len(MODEL_POOL)):
+        model = get_available_model()
+        if model is None:
+            return None, None, "All model quotas exhausted for today. They reset at midnight Pacific."
+        if skip_model_id and model["id"] == skip_model_id:
+            mark_model_exhausted(model["id"])
+            continue
+        try:
+            response = client.models.generate_content(
+                model=model["id"],
+                contents=history,
+                config=config,
+            )
+            bump_usage(model["id"])
+            return response, model, None
+        except Exception as e:
+            err = str(e)
+            if any(code in err for code in ["429", "quota", "QUOTA", "RESOURCE_EXHAUSTED"]):
+                st.toast(f"⚠️ {model['label']} quota hit — switching…", icon="🔄")
+                mark_model_exhausted(model["id"])
+                continue
+            elif "404" in err or "NOT_FOUND" in err:
+                # Model ID is wrong — skip permanently this session
+                mark_model_exhausted(model["id"])
+                st.warning(f"Model {model['label']} not available (404) — skipping.")
+                continue
+            elif any(code in err for code in ["503", "UNAVAILABLE"]):
+                return None, None, "Google's servers are overloaded. Wait a moment and retry."
+            else:
+                return None, None, f"Unexpected error: {err}"
+    return None, None, "All models exhausted or unavailable."
+
+
 if user_input := st.chat_input("Ask me anything…"):
     if not os.getenv("GEMINI_API_KEY"):
         st.error("Please enter your free Gemini API key in the sidebar.")
         st.stop()
 
-    model = get_available_model()
-    if model is None:
-        st.error("All model quotas are exhausted for today. They reset at midnight UTC.")
+    if get_available_model() is None:
+        st.error("All model quotas are exhausted for today. They reset at midnight Pacific.")
         st.stop()
 
     client = genai.Client()
@@ -203,41 +243,12 @@ if user_input := st.chat_input("Ask me anything…"):
                 types.Content(role=role, parts=[types.Part.from_text(text=msg["content"])])
             )
 
-        # --- Retry loop: try models until one works ---
-        response = None
-        for attempt in range(len(MODEL_POOL)):
-            model = get_available_model()
-            if model is None:
-                st.error("All model quotas exhausted for today.")
-                st.stop()
-
-            try:
-                response = client.models.generate_content(
-                    model=model["id"],
-                    contents=gemini_history,
-                    config=config,
-                )
-                bump_usage(model["id"])
-                break  # success
-
-            except Exception as e:
-                err = str(e)
-                if any(code in err for code in ["429", "quota", "QUOTA", "RESOURCE_EXHAUSTED"]):
-                    st.toast(f"⚠️ {model['label']} quota hit — switching model…", icon="🔄")
-                    mark_model_exhausted(model["id"])
-                    continue  # try next model
-                elif any(code in err for code in ["503", "UNAVAILABLE"]):
-                    st.error("Google's servers are overloaded. Wait a moment and retry.")
-                    st.stop()
-                else:
-                    st.error(f"Unexpected error: {err}")
-                    st.stop()
-
-        if response is None:
-            st.error("Could not get a response from any model.")
+        response, used_model, err = try_generate(client, gemini_history, config)
+        if err:
+            st.error(err)
             st.stop()
 
-        # --- Handle tool calls ---
+        # Handle tool calls
         if response.function_calls:
             for call in response.function_calls:
                 tool_name = call.name
@@ -261,34 +272,14 @@ if user_input := st.chat_input("Ask me anything…"):
                     ]),
                 ]
 
-                # Retry synthesis with fallback too
-                final_response = None
-                for attempt in range(len(MODEL_POOL)):
-                    model = get_available_model()
-                    if model is None:
-                        break
-                    try:
-                        final_response = client.models.generate_content(
-                            model=model["id"],
-                            contents=follow_up_history,
-                            config=config,
-                        )
-                        bump_usage(model["id"])
-                        break
-                    except Exception as e:
-                        err = str(e)
-                        if any(code in err for code in ["429", "quota", "QUOTA", "RESOURCE_EXHAUSTED"]):
-                            mark_model_exhausted(model["id"])
-                            continue
-                        st.error(f"Tool synthesis error: {err}")
-                        st.stop()
+                final_response, _, err2 = try_generate(client, follow_up_history, config)
+                if err2:
+                    st.error(err2)
+                    st.stop()
 
-                if final_response:
-                    final_text = final_response.text
-                    st.write(final_text)
-                    active_messages.append({"role": "assistant", "content": final_text})
-                else:
-                    st.error("All models exhausted during tool synthesis.")
+                final_text = final_response.text
+                st.write(final_text)
+                active_messages.append({"role": "assistant", "content": final_text})
         else:
             st.write(response.text)
             active_messages.append({"role": "assistant", "content": response.text})
